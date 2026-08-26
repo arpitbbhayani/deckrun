@@ -1,72 +1,108 @@
 # present-md
 
-Write slides in Markdown, run locally, present clean - built for engineers who hate slide tools.
+Write slides in Markdown, run locally, and present in the browser.
 
 ![Slide showing a code-heavy presentation with syntax highlighting](https://github.com/user-attachments/assets/07b0659c-f82c-44b2-8ecd-815dfd081c49)
 
-## Install globally
+## Installation
+
+Install the package globally using npm:
 
 ```bash
 npm install -g present-md
 ```
 
-Then use `present-md` directly without `npx`.
+You can also run it directly without installation using `npx`:
+
+```bash
+npx present-md slides.md
+```
 
 ## Usage
 
 ```bash
-npx present-md slides.md             # serve on :7890, auto-open browser
-npx present-md slides.md -p 3000    # custom port
-npx present-md slides.md --no-open  # serve only, print URL
-npx present-md slides.md --fullscreen  # prompt to enter fullscreen on load
-npx present-md slides.md --pdf      # export to PDF
+# Serve on default port 7890 and open the browser
+present-md slides.md
+
+# Serve on a custom port
+present-md slides.md -p 3000
+
+# Start server without opening a browser tab
+present-md slides.md --no-open
+
+# Prompt to enter fullscreen on first interaction
+present-md slides.md --fullscreen
+
+# Use light theme (Catppuccin Latte)
+present-md slides.md --theme light
 ```
+### CLI options
 
-## Writing slides
+| Option                | Default | Description                                          |
+| --------------------- | ------- | ---------------------------------------------------- |
+| `-p, --port <number>` | `7890`  | Port to serve the presentation on                    |
+| `--no-open`           | `false` | Start the HTTP server without opening the browser    |
+| `--fullscreen`        | `false` | Prompt to enter fullscreen on first user interaction |
+| `--theme <name>`      | `dark`  | Color theme (`dark` or `light`)                      |
+| `-v, --version`       |         | Display version number                               |
+| `-h, --help`          |         | Display help for command                             |
 
-Each slide is a block of Markdown separated by `---` on its own line:
+## Slide authoring
+
+Separate slides using `---` on its own line:
 
 ```markdown
 # First slide
 
-Some content here.
+Introduction text goes here.
 
 ---
 
 ## Second slide
 
-More content.
+Content for the next slide.
 
 ---
 
-# Thank you
+# Conclusion
 ```
 
-The first `#` heading in the file is used as the browser tab title.
+The presentation extracts the first heading from the slide deck and sets it as the HTML page title. If no heading exists, it falls back to the Markdown filename.
 
-### Text and formatting
+### Formatting
 
-Standard Markdown works everywhere — headings, bold, italic, inline code, blockquotes, tables, and lists:
+Write slide content using standard Markdown syntax, including headings, lists, tables, blockquotes, horizontal rules, and inline code:
 
 ```markdown
-## My slide
+## System Architecture
 
-> "Good programmers write code that humans can understand." — *Martin Fowler*
+> Any fool can write code that a computer can understand. Good programmers write code that humans can understand. - Martin Fowler
 
-- Point one with **bold** and `inline code`
-- Point two with *italic*
+- Ingestion pipeline with backpressure controls
+- Memory-mapped buffer storage
+  - Zero-copy ring buffer
+  - Page-aligned disk persistence
 
-| Column A | Column B |
-|----------|----------|
-| foo      | bar      |
+| Service     | Port | Protocol |
+| ----------- | ---- | -------- |
+| api-gateway | 8080 | HTTP/2   |
+| worker-pool | 9090 | gRPC     |
 ```
 
 ### Code blocks
 
-Fenced code blocks get full syntax highlighting:
+Fenced code blocks include automatic syntax highlighting via Highlight.js:
 
 ````markdown
 ```typescript
+interface Slide {
+  html: string;
+  bgImage?: PositionedImage;
+  rightImage?: PositionedImage;
+  leftImage?: PositionedImage;
+  notes?: string;
+}
+
 function parseSlides(markdown: string): Slide[] {
   return markdown
     .split(/\n---\n/)
@@ -76,52 +112,179 @@ function parseSlides(markdown: string): Slide[] {
 ```
 ````
 
-### Image placement
+### Speaker notes
 
-Images are positioned using the title attribute (the quoted string after the URL):
+Add speaker notes using HTML comments containing a `notes:` directive:
 
 ```markdown
-![alt](image.png "right")              # image on right half, content on left
-![alt](image.png "left")               # image on left half, content on right
-![alt](image.png "bg")                 # fullscreen background behind content
-![alt](image.png "right opacity:0.8")  # combine position with opacity (0.0–1.0)
-![alt](image.png)                      # inline, default flow
+## Deployment Strategy
+
+Rolling deployment with zero downtime.
+
+<!-- notes: Review database migration rollout steps before advancing. -->
 ```
 
-| Directive    | Effect                        |
-| ------------ | ----------------------------- |
-| `right`      | Image fills the right half    |
-| `left`       | Image fills the left half     |
-| `bg`         | Fullscreen background         |
-| `opacity:N`  | Transparency, 0.0 – 1.0       |
+### Image layout and directives
 
-`bg` works well for title slides and section dividers — the text sits on top with full readability.
+Control image placement and opacity by specifying directives in the image title attribute:
 
-## Keyboard shortcuts
+```markdown
+![Architecture Diagram](diagram.png "right")
+![Benchmark Graph](benchmark.png "left")
+![Background Graphic](backdrop.png "bg")
+![Telemetry Dashboard](dashboard.png "right opacity:0.8")
+![Inline Figure](figure.png)
+```
 
-| Key             | Action              |
-| --------------- | ------------------- |
-| `→` / `Space`   | Next slide          |
-| `←`             | Previous slide      |
-| `O`             | Overview grid       |
-| `F`             | Toggle fullscreen   |
-| `Home` / `End`  | First / last slide  |
+| Directive   | Description                                                                       |
+| ----------- | --------------------------------------------------------------------------------- |
+| `right`     | Split layout: content sits on the left, image fills the right panel               |
+| `left`      | Split layout: image fills the left panel, content sits on the right               |
+| `bg`        | Background layout: image covers the full slide canvas beneath the text content    |
+| `opacity:N` | Image opacity between `0.0` and `1.0` (combinable with `left`, `right`, or `bg`)  |
 
-## Features
+Inline images without directives render centered within standard document flow.
 
-- Catppuccin Mocha dark theme — always, no override possible
-- IBM Plex Mono throughout (headings, body, code)
-- Highlight.js (tokyo-night-dark theme) for code blocks via CDN
-- Full Markdown: tables, blockquotes, lists, bold/italic, inline code, HR
-- Smooth slide transitions with directional animation
-- Progress bar + slide counter HUD
-- HTTP server (not `file://`) so local images load without CORS issues
-- Touch swipe support
-- PDF export via `--pdf`
+## Themes
+
+The presentation provides two built-in themes using the Catppuccin color palette:
+
+- `dark` (default): Catppuccin Mocha palette with Tokyo Night Dark code syntax highlighting
+- `light`: Catppuccin Latte palette with Atom One Light code syntax highlighting
+
+Select the theme with the `--theme` flag:
+
+```bash
+present-md slides.md --theme light
+```
+
+## Navigation and controls
+
+Navigate presentations using keyboard shortcuts, on-screen buttons, or touchscreen gestures.
+
+### Keyboard shortcuts
+
+| Key                       | Action                                     |
+| ------------------------- | ------------------------------------------ |
+| `Right`, `Down`, `Space`  | Advance to the next slide                  |
+| `Left`, `Up`, `Backspace` | Return to the previous slide               |
+| `Home`                    | Jump to the first slide                    |
+| `End`                     | Jump to the last slide                     |
+| `O`, `Escape`             | Toggle the overview grid                   |
+| `F`                       | Toggle fullscreen mode                     |
+
+### Mouse and touch controls
+
+- Click the navigation arrow buttons on either side of the screen
+- Swipe left or right on touchscreen devices to advance or return
+- Click any thumbnail in overview mode to jump directly to that slide
+
+### Overview mode
+
+Press `O` or `Escape` to toggle a grid overview displaying live rendered thumbnails of every slide in the deck. Selecting a thumbnail transitions to that slide.
+
+### Fullscreen mode
+
+Pass `--fullscreen` to display a launch overlay that requests fullscreen on the first keypress or click. You can also toggle fullscreen at any time during presentation with the `F` key.
+
+## Visual elements
+
+- Terminal aesthetics: Monospace typography throughout using IBM Plex Mono, complemented by a blinking cursor in the top right
+- Animated slide transitions: Direction-aware sliding animations when navigating forwards or backwards
+- HUD overlay: Bottom progress bar with a gradient fill and active slide counter
+- Pixel pets: Three animated pets randomly selected from VS Code Pets appear along the bottom interface
+- Temporary key hint: A keyboard navigation reminder that displays on load and fades after 4 seconds
+
+## PDF export
+
+Export presentations to PDF using the print dialog in any modern browser (`Ctrl+P` or `Cmd+P`):
+
+- Dedicated `@media print` styles format each slide as a standalone landscape page
+- UI elements (HUD, navigation arrows, cursor, pixel pets, keyboard hints) are automatically hidden
+- Background colors and styling are preserved when background graphics are enabled in print settings
+
+## Local asset server
+
+`present-md` starts a local HTTP server that serves files relative to the directory of the Markdown file. This ensures local images, diagrams, fonts, and media load reliably without browser CORS restrictions. If the specified port is unavailable, the server automatically finds an open port.
+
+## Complete slide template
+
+Below is a complete multi-slide Markdown deck illustrating common layout combinations, syntax highlighting, image directives, and speaker notes:
+
+````markdown
+# Scaling Distributed Systems
+
+Building resilient, event-driven architectures in production.
+
+![Cover Background](assets/cover.png "bg opacity:0.25")
+
+<!-- notes: Introduce the talk and set context on modern distributed scale. -->
+
+---
+
+## Architectural Overview
+
+- Microservices communicate over gRPC for low-latency RPCs
+- Events stream through Apache Kafka for durable message logs
+- Read replicas scale consumer queries horizontally
+
+![Architecture Diagram](assets/architecture.png "right opacity:0.95")
+
+<!-- notes: Walk through the request path from gateway to storage engine. -->
+
+---
+
+## Consumer Worker Implementation
+
+```go
+func (w *Worker) ProcessEvent(ctx context.Context, msg *kafka.Message) error {
+    ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+    defer cancel()
+
+    if err := w.store.Save(ctx, msg.Value); err != nil {
+        return fmt.Errorf("failed to persist event: %w", err)
+    }
+    return nil
+}
+```
+
+<!-- notes: Emphasize context timeout handling on message persistence. -->
+
+---
+
+## Performance Benchmark
+
+| Configuration | Throughput (req/s) | p99 Latency (ms) |
+| ------------- | ------------------ | ---------------- |
+| Single node   | 12,400             | 18.2             |
+| 3-node cluster| 35,100             | 6.4              |
+| 5-node cluster| 58,900             | 4.1              |
+
+---
+
+# Summary
+
+- Favor asynchronous message passing for decoupled services
+- Apply database timeouts at the connection and role layer
+- Use structured event logs for auditing state mutations
+````
 
 ## Examples
 
-See `examples/` for sample slide decks:
+Sample slide decks are available in the `examples/` directory:
 
-- `examples/example-1.md` — feature walkthrough
-- `examples/example-2.md` — real-world talk: databases and agentic AI
+- `examples/example-1.md` - Feature walkthrough covering syntax, split layouts, opacity, and shortcuts
+- `examples/example-2.md` - Complete technical presentation on databases and agentic AI
+
+Run any example directly from the repository:
+
+```bash
+# Run the feature showcase deck
+present-md examples/example-1.md
+
+# Run the technical presentation in light theme on port 3000
+present-md examples/example-2.md -p 3000 --theme light
+
+# Run fullscreen without opening a browser
+present-md examples/example-1.md --fullscreen --no-open
+```
