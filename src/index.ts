@@ -7,7 +7,23 @@ import { resolve, dirname, basename, extname } from "path";
 import { Command } from "commander";
 import open from "open";
 import { parseSlides, type Slide } from "./parser.js";
-import { generateHtml, renderSlide, type ThemeName } from "./generate.js";
+import { generateHtml, renderSlide } from "./generate.js";
+import {
+  DEFAULT_SIZE,
+  DEFAULT_THEME,
+  findFont,
+  findSize,
+  findTheme,
+  fontListing,
+  fontName,
+  resolveSizeName,
+  resolveThemeName,
+  THEMES,
+  themeListing,
+  sizeListing,
+  type SizeName,
+  type ThemeName,
+} from "./themes.js";
 import { generateEditorHtml } from "./editor.js";
 import { generatePreviewHtml } from "./preview.js";
 import { findBrowser, renderPdfSerial, PdfError } from "./pdf.js";
@@ -144,6 +160,8 @@ interface DeckMode {
 interface EditorMode {
   kind: "editor";
   theme: ThemeName;
+  size: SizeName;
+  fonts: { head: string | null; body: string | null };
   fullscreen: boolean;
   /** Filled in once the port is known, so PDF rendering can reach the deck. */
   origin?: string;
@@ -191,7 +209,7 @@ async function handleEditorRoute(
   res: ServerResponse
 ): Promise<boolean> {
   if (pathname === "/__preview" && req.method === "GET") {
-    sendHtml(res, generatePreviewHtml(mode.theme));
+    sendHtml(res, generatePreviewHtml(mode.theme, mode.size, mode.fonts));
     return true;
   }
 
@@ -210,6 +228,9 @@ async function handleEditorRoute(
     const body = JSON.parse(await readBody(req)) as {
       markdown?: string;
       theme?: string;
+      size?: string;
+      head?: string | null;
+      body?: string | null;
       title?: string;
       print?: boolean;
     };
@@ -219,11 +240,17 @@ async function handleEditorRoute(
       res.end(JSON.stringify({ error: "no slides" }));
       return true;
     }
-    const theme: ThemeName = body.theme === "light" ? "light" : "dark";
+    const theme = resolveThemeName(body.theme);
+    const size = resolveSizeName(body.size);
     const title = deckTitle(slides, body.title?.trim() || "present-md");
     // A deck built for printing must not open behind a fullscreen prompt.
     const forPrint = body.print === true;
-    const path = stashDeck(generateHtml(slides, title, forPrint ? false : mode.fullscreen, theme));
+    const path = stashDeck(
+      generateHtml(slides, title, forPrint ? false : mode.fullscreen, theme, size, {
+        head: body.head,
+        body: body.body,
+      })
+    );
     sendJson(res, { path: forPrint ? `${path}&print=1` : path });
     return true;
   }
@@ -232,6 +259,9 @@ async function handleEditorRoute(
     const body = JSON.parse(await readBody(req)) as {
       markdown?: string;
       theme?: string;
+      size?: string;
+      head?: string | null;
+      body?: string | null;
       title?: string;
     };
     const slides = parseSlides(body.markdown ?? "");
@@ -255,9 +285,12 @@ async function handleEditorRoute(
       return true;
     }
 
-    const theme: ThemeName = body.theme === "light" ? "light" : "dark";
+    const theme = resolveThemeName(body.theme);
+    const size = resolveSizeName(body.size);
     const title = deckTitle(slides, body.title?.trim() || "present-md");
-    const path = stashDeck(generateHtml(slides, title, false, theme));
+    const path = stashDeck(
+      generateHtml(slides, title, false, theme, size, { head: body.head, body: body.body })
+    );
 
     try {
       const pdf = await renderPdfSerial(`${mode.origin}${path}`, browser);
@@ -291,7 +324,12 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
       if (pathname === "/" || pathname === "/index.html") {
         const wantsDeck = mode.kind === "editor" && query.get("deck");
         if (wantsDeck) serveStashedDeck(wantsDeck, res);
-        else sendHtml(res, mode.kind === "deck" ? mode.html : generateEditorHtml(mode.theme));
+        else sendHtml(
+          res,
+          mode.kind === "deck"
+            ? mode.html
+            : generateEditorHtml(mode.theme, mode.size, mode.fonts)
+        );
         return;
       }
 
@@ -340,13 +378,76 @@ program
   .option("-p, --port <number>", "Port to serve on", "7890")
   .option("--no-open", "Do not automatically open the browser")
   .option("--fullscreen", "Auto-enter fullscreen on first interaction")
-  .option("--theme <name>", "Color theme: dark or light", "dark")
+  .option("--theme <name>", "Color theme, by id (see --list-themes)", DEFAULT_THEME)
+  .option("--size <name>", "Type size: s, m, l, or xl", DEFAULT_SIZE)
+  .option("--head-font <name>", "Override the theme's heading face (see --list-fonts)")
+  .option("--body-font <name>", "Override the theme's body face (see --list-fonts)")
+  .option("--list-themes", "Print every theme and exit")
+  .option("--list-sizes", "Print every type size and exit")
+  .option("--list-fonts", "Print every font face and exit")
   .action(
     async (
       file: string | undefined,
-      opts: { port: string; open: boolean; fullscreen?: boolean; theme: string }
+      opts: {
+        port: string;
+        open: boolean;
+        fullscreen?: boolean;
+        theme: string;
+        size: string;
+        headFont?: string;
+        bodyFont?: string;
+        listThemes?: boolean;
+        listSizes?: boolean;
+        listFonts?: boolean;
+      }
     ) => {
-      const theme = (opts.theme === "light" ? "light" : "dark") as ThemeName;
+      if (opts.listThemes) {
+        for (const line of themeListing()) console.log(line);
+        process.exit(0);
+      }
+      if (opts.listSizes) {
+        for (const line of sizeListing()) console.log(line);
+        process.exit(0);
+      }
+      if (opts.listFonts) {
+        for (const line of fontListing()) console.log(line);
+        process.exit(0);
+      }
+
+      const named = findTheme(opts.theme);
+      if (!named) {
+        console.error(
+          `present-md: unknown theme '${opts.theme}'. Run --list-themes to see them all.`
+        );
+        process.exit(1);
+      }
+      const sized = findSize(opts.size);
+      if (!sized) {
+        console.error(
+          `present-md: unknown size '${opts.size}'. Run --list-sizes to see them all.`
+        );
+        process.exit(1);
+      }
+      // Both face flags are optional; unset means the theme keeps its own.
+      const fonts: { head: string | null; body: string | null } = { head: null, body: null };
+      for (const [flag, slot] of [
+        ["--head-font", "head"],
+        ["--body-font", "body"],
+      ] as const) {
+        const raw = slot === "head" ? opts.headFont : opts.bodyFont;
+        if (raw === undefined) continue;
+        const face = findFont(raw);
+        if (!face) {
+          console.error(
+            `present-md: unknown font '${raw}' for ${flag}. Run --list-fonts to see them all.`
+          );
+          process.exit(1);
+        }
+        fonts[slot] = face;
+      }
+
+      const theme: ThemeName = named;
+      const size: SizeName = sized;
       const fullscreen = !!opts.fullscreen;
 
       let mode: Mode;
@@ -371,14 +472,21 @@ program
         }
 
         const title = deckTitle(slides, basename(absPath, extname(absPath)));
-        mode = { kind: "deck", html: generateHtml(slides, title, fullscreen, theme) };
+        mode = {
+          kind: "deck",
+          html: generateHtml(slides, title, fullscreen, theme, size, fonts),
+        };
 
+        const faces = [
+          fonts.head ? `head ${fontName(fonts.head)}` : "",
+          fonts.body ? `body ${fontName(fonts.body)}` : "",
+        ].filter(Boolean).join(" · ");
         console.log(
-          `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)}${c.reset}`
+          `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)} · ${THEMES[theme].label} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
         );
       } else {
         baseDir = process.cwd();
-        mode = { kind: "editor", theme, fullscreen };
+        mode = { kind: "editor", theme, size, fonts, fullscreen };
       }
 
       const port = await findFreePort(parseInt(opts.port, 10));
@@ -395,7 +503,7 @@ program
           `${c.dim}write on the left, live deck on the right. autosaves to your browser.${c.reset}`
         );
         console.log(
-          `${c.dim}Cmd/Ctrl+K inserts anything · Cmd/Ctrl+Enter presents · Cmd/Ctrl+S downloads${c.reset}`
+          `${c.dim}Cmd/Ctrl+K inserts anything · Cmd/Ctrl+Shift+L switches theme · Cmd/Ctrl+Enter presents${c.reset}`
         );
       }
 

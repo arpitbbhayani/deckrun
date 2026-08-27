@@ -1,80 +1,54 @@
 import type { Slide } from "./parser.js";
+import {
+  DECOR_CSS,
+  DEFAULT_SIZE,
+  DEFAULT_THEME,
+  decorOf,
+  findFont,
+  fontOverrideCss,
+  googleFontsHref,
+  hljsHref,
+  resolveSizeName,
+  resolveThemeName,
+  sizeRootCss,
+  themeRootCss,
+  type SizeName,
+  type ThemeName,
+} from "./themes.js";
 
-export type ThemeName = "dark" | "light";
-
-interface ThemeVars {
-  crust: string; mantle: string; base: string;
-  surface0: string; surface1: string; surface2: string;
-  overlay0: string; overlay1: string;
-  subtext0: string; subtext1: string; text: string;
-  lavender: string; blue: string; sapphire: string;
-  sky: string; teal: string; green: string;
-  yellow: string; peach: string; red: string;
-  mauve: string; pink: string;
-  mauveAlpha: string; surface0Alpha: string; crustOverlay: string;
-  hljs: string;
-}
-
-const THEMES: Record<ThemeName, ThemeVars> = {
-  dark: {
-    // Catppuccin Mocha
-    crust:    "#11111b",
-    mantle:   "#181825",
-    base:     "#1e1e2e",
-    surface0: "#313244",
-    surface1: "#45475a",
-    surface2: "#585b70",
-    overlay0: "#6c7086",
-    overlay1: "#7f849c",
-    subtext0: "#a6adc8",
-    subtext1: "#bac2de",
-    text:     "#cdd6f4",
-    lavender: "#b4befe",
-    blue:     "#89b4fa",
-    sapphire: "#74c7ec",
-    sky:      "#89dceb",
-    teal:     "#94e2d5",
-    green:    "#a6e3a1",
-    yellow:   "#f9e2af",
-    peach:    "#fab387",
-    red:      "#f38ba8",
-    mauve:    "#cba6f7",
-    pink:     "#f5c2e7",
-    mauveAlpha:    "rgba(203, 166, 247, 0.06)",
-    surface0Alpha: "rgba(49, 50, 68, 0.3)",
-    crustOverlay:  "rgba(17, 17, 27, 0.82)",
-    hljs: "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css",
-  },
-  light: {
-    // Catppuccin Latte — darkened secondary/muted colors for higher contrast
-    crust:    "#ebebeb",
-    mantle:   "#f5f5f5",
-    base:     "#fafaf8",
-    surface0: "#ccd0da",
-    surface1: "#9ca0b0",
-    surface2: "#8c8fa1",
-    overlay0: "#6c6f85",
-    overlay1: "#5c5f77",
-    subtext0: "#4c4f69",
-    subtext1: "#3a3c52",
-    text:     "#1e2030",
-    lavender: "#7287fd",
-    blue:     "#1e66f5",
-    sapphire: "#209fb5",
-    sky:      "#04a5e5",
-    teal:     "#179299",
-    green:    "#40a02b",
-    yellow:   "#df8e1d",
-    peach:    "#fe640b",
-    red:      "#d20f39",
-    mauve:    "#8839ef",
-    pink:     "#ea76cb",
-    mauveAlpha:    "rgba(136, 57, 239, 0.06)",
-    surface0Alpha: "rgba(204, 208, 218, 0.3)",
-    crustOverlay:  "rgba(220, 224, 232, 0.88)",
-    hljs: "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css",
-  },
-};
+export {
+  DECOR_CSS,
+  decorOf,
+  googleFontsHref,
+  hljsHref,
+  hljsMapJson,
+  decorMapJson,
+  themeRootCss,
+  themeSwitchableCss,
+  themeSummaries,
+  resolveThemeName,
+  findTheme,
+  THEME_IDS,
+  THEMES,
+  DEFAULT_THEME,
+  type ThemeName,
+  sizeRootCss,
+  sizeSwitchableCss,
+  sizeSummaries,
+  resolveSizeName,
+  findSize,
+  SIZE_IDS,
+  DEFAULT_SIZE,
+  type SizeName,
+  fontOverrideCss,
+  fontSummaries,
+  fontListing,
+  fontName,
+  findFont,
+  FONT_IDS,
+  FONTS,
+  type FontSummary,
+} from "./themes.js";
 
 function escAttr(str: string): string {
   return str
@@ -82,59 +56,6 @@ function escAttr(str: string): string {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-}
-
-
-function themeVarBlock(t: ThemeVars): string {
-  return [
-    `  --crust:    ${t.crust};`,
-    `  --mantle:   ${t.mantle};`,
-    `  --base:     ${t.base};`,
-    `  --surface0: ${t.surface0};`,
-    `  --surface1: ${t.surface1};`,
-    `  --surface2: ${t.surface2};`,
-    `  --overlay0: ${t.overlay0};`,
-    `  --overlay1: ${t.overlay1};`,
-    `  --subtext0: ${t.subtext0};`,
-    `  --subtext1: ${t.subtext1};`,
-    `  --text:     ${t.text};`,
-    `  --lavender: ${t.lavender};`,
-    `  --blue:     ${t.blue};`,
-    `  --sapphire: ${t.sapphire};`,
-    `  --sky:      ${t.sky};`,
-    `  --teal:     ${t.teal};`,
-    `  --green:    ${t.green};`,
-    `  --yellow:   ${t.yellow};`,
-    `  --peach:    ${t.peach};`,
-    `  --red:      ${t.red};`,
-    `  --mauve:    ${t.mauve};`,
-    `  --pink:     ${t.pink};`,
-    `  --mauve-alpha:    ${t.mauveAlpha};`,
-    `  --surface0-alpha: ${t.surface0Alpha};`,
-    `  --crust-overlay:  ${t.crustOverlay};`,
-  ].join("\n");
-}
-
-/** Palette for a single baked-in theme. */
-export function themeRootCss(theme: ThemeName): string {
-  return `:root {\n${themeVarBlock(THEMES[theme])}\n}`;
-}
-
-/** Both palettes, switchable at runtime via [data-theme] on the root element. */
-export function themeSwitchableCss(): string {
-  return [
-    ':root, :root[data-theme="dark"] {',
-    themeVarBlock(THEMES.dark),
-    '}',
-    ':root[data-theme="light"] {',
-    themeVarBlock(THEMES.light),
-    '}',
-  ].join("\n");
-}
-
-/** Stylesheet URL for the Highlight.js theme that pairs with a palette. */
-export function hljsHref(theme: ThemeName): string {
-  return THEMES[theme].hljs;
 }
 
 export function renderSlide(slide: Slide, index: number): string {
@@ -184,14 +105,18 @@ export const SLIDE_CSS = `html, body {
   overflow: hidden;
   background: var(--crust);
   color: var(--text);
-  font-family: 'IBM Plex Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-family: var(--font-body);
+  letter-spacing: var(--body-tracking);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-variant-ligatures: common-ligatures;
 }
 
 /* ── Presentation shell ───────────────────────────────────────────────── */
 #presentation {
   position: relative;
+  z-index: 1;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
@@ -204,7 +129,7 @@ export const SLIDE_CSS = `html, body {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: 4rem 6rem;
+  padding: var(--slide-pad-y) var(--slide-pad-x);
   opacity: 0;
   pointer-events: none;
   /* forward: enter from right */
@@ -241,28 +166,50 @@ export const SLIDE_CSS = `html, body {
   z-index: 0;
 }
 
-.slide--has-bg .slide__content,
-.slide--has-bg .slide__split {
-  position: relative;
-  z-index: 1;
-}
-
 /* ── Content area ─────────────────────────────────────────────────────── */
 .slide__content {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 1100px;
-  max-height: calc(100vh - 8rem);
+  max-height: calc(100vh - var(--slide-pad-y) * 2);
   overflow: hidden;
+}
+
+/* Each block lands a beat after the one above it, so a slide assembles
+   itself instead of appearing all at once. */
+.slide.is-active .slide__content > * {
+  animation: slide-rise 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.slide.is-active .slide__content > *:nth-child(1) { animation-delay: 0.05s; }
+.slide.is-active .slide__content > *:nth-child(2) { animation-delay: 0.11s; }
+.slide.is-active .slide__content > *:nth-child(3) { animation-delay: 0.17s; }
+.slide.is-active .slide__content > *:nth-child(4) { animation-delay: 0.23s; }
+.slide.is-active .slide__content > *:nth-child(5) { animation-delay: 0.29s; }
+.slide.is-active .slide__content > *:nth-child(6) { animation-delay: 0.34s; }
+.slide.is-active .slide__content > *:nth-child(n+7) { animation-delay: 0.39s; }
+
+@keyframes slide-rise {
+  from { opacity: 0; transform: translateY(15px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide { transition: opacity 0.2s linear; transform: none !important; }
+  .slide.is-active .slide__content > * { animation: none !important; }
 }
 
 /* ── Split layouts ────────────────────────────────────────────────────── */
 .slide__split {
+  position: relative;
+  z-index: 1;
   display: flex;
   width: 100%;
   max-width: 1400px;
-  height: calc(100vh - 8rem);
+  height: calc(100vh - var(--slide-pad-y) * 2);
   align-items: center;
-  gap: 3rem;
+  gap: 3.2rem;
 }
 
 .slide__split .slide__content {
@@ -282,182 +229,292 @@ export const SLIDE_CSS = `html, body {
   max-width: 100%;
   max-height: 78vh;
   object-fit: contain;
-  border-radius: 6px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-lg);
 }
 
 /* ── Typography ───────────────────────────────────────────────────────── */
+.slide__content h1,
+.slide__content h2,
+.slide__content h3,
+.slide__content h4 {
+  font-family: var(--font-display);
+  letter-spacing: var(--display-tracking);
+  text-wrap: balance;
+}
+
 .slide__content h1 {
-  font-size: clamp(2rem, 4.5vw, 3.4rem);
-  font-weight: 700;
-  color: var(--mauve);
-  margin-bottom: 1.2rem;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  position: relative;
+  font-size: calc(clamp(2.1rem, 4.6vw, 3.6rem) * var(--type-display));
+  font-weight: var(--display-weight);
+  text-transform: var(--display-case);
+  color: var(--accent);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.55rem;
+  line-height: 1.1;
+}
+
+/* A gradient rule under the title, fading out rather than stopping dead. */
+.slide__content h1::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 2.4em;
+  max-width: 55%;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--accent-fade);
 }
 
 .slide__content h2 {
-  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  font-size: calc(clamp(1.55rem, 3vw, 2.5rem) * var(--type-display));
   font-weight: 600;
-  color: var(--blue);
-  margin-bottom: 1rem;
-  line-height: 1.25;
+  color: var(--accent-2);
+  margin-bottom: 1.05rem;
+  line-height: 1.2;
 }
 
 .slide__content h3 {
-  font-size: clamp(1.15rem, 2vw, 1.75rem);
-  font-weight: 500;
-  color: var(--sky);
+  font-size: calc(clamp(1.15rem, 2vw, 1.8rem) * var(--type-display));
+  font-weight: 600;
+  color: var(--accent-3);
   margin-bottom: 0.75rem;
-  line-height: 1.3;
+  line-height: 1.28;
 }
 
 .slide__content h4 {
-  font-size: 1.25rem;
-  font-weight: 500;
-  color: var(--teal);
-  margin-bottom: 0.5rem;
+  font-size: calc(1.3rem * var(--type-display));
+  font-weight: 600;
+  color: var(--subtext1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.55rem;
 }
 
 .slide__content p {
-  font-size: clamp(1rem, 1.6vw, 1.35rem);
-  line-height: 1.75;
-  margin-bottom: 0.9rem;
-  color: var(--text);
+  font-size: calc(clamp(1rem, 1.6vw, 1.35rem) * var(--type-body));
+  line-height: calc(1.72 * var(--type-lead));
+  margin-bottom: 1rem;
+  color: var(--subtext1);
+  max-width: 62ch;
 }
 
 .slide__content strong {
-  color: var(--peach);
-  font-weight: 600;
+  color: var(--text);
+  font-weight: 700;
+  /* A tinted underlay instead of a second color, so emphasis reads without
+     turning the sentence into a swatch. */
+  background: linear-gradient(transparent 62%, var(--accent-soft) 62%);
 }
 
 .slide__content em {
-  color: var(--subtext1);
+  color: var(--accent-3);
   font-style: italic;
 }
 
 /* ── Lists ────────────────────────────────────────────────────────────── */
 .slide__content ul,
 .slide__content ol {
-  font-size: clamp(0.95rem, 1.5vw, 1.25rem);
-  line-height: 1.85;
-  padding-left: 2.5rem;
-  margin-bottom: 0.9rem;
-  color: var(--text);
+  font-size: calc(clamp(0.95rem, 1.5vw, 1.28rem) * var(--type-body));
+  line-height: calc(1.72 * var(--type-lead));
+  margin-bottom: 1rem;
+  color: var(--subtext1);
+  max-width: 64ch;
 }
+
+.slide__content ul { list-style: none; padding-left: 1.35em; }
+
+/* Numbers live in the marker box, outside the content box, so an ordered list
+   needs room for "10." before its text starts. */
+.slide__content ol { padding-left: 2.05em; }
 
 .slide__content li {
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.42em;
+  padding-left: 0.15em;
 }
 
-.slide__content li::marker {
-  color: var(--mauve);
+.slide__content ol li::marker {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  font-weight: 600;
+}
+
+/* A custom bullet: small, accent-colored, and vertically centred on the
+   first line rather than sitting on the baseline like a period. */
+.slide__content ul > li {
+  position: relative;
+  padding-left: 0.9em;
+}
+
+.slide__content ul > li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 0.33em;
+  height: 0.33em;
+  border-radius: 0.1em;
+  background: var(--accent);
+  transform: rotate(45deg);
+}
+
+.slide__content ul ul > li::before {
+  background: transparent;
+  border: 1.5px solid var(--accent-3);
 }
 
 .slide__content ul ul,
 .slide__content ol ol,
 .slide__content ul ol,
 .slide__content ol ul {
-  margin-top: 0.25rem;
+  margin-top: 0.34em;
   margin-bottom: 0;
-  padding-left: 2rem;
+  padding-left: 1em;
+  font-size: 0.94em;
+  color: var(--subtext0);
 }
 
 /* ── Code ─────────────────────────────────────────────────────────────── */
 .slide__content pre {
-  margin: 1rem 0;
-  border-radius: 8px;
-  border: 1px solid var(--surface1);
+  position: relative;
+  margin: 1.2rem 0;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
   overflow-x: auto;
-  font-size: clamp(0.75rem, 1.1vw, 1rem);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  font-size: calc(clamp(0.75rem, 1.1vw, 1rem) * var(--type-code));
+  box-shadow: var(--code-shadow);
+  background: var(--mantle);
+}
+
+/* A hairline of accent along the top edge, so a code block reads as a panel
+   rather than as a hole in the slide. */
+.slide__content pre::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  border-radius: 12px 12px 0 0;
+  background: var(--accent-fade);
+  opacity: 0.8;
 }
 
 /* Override hljs background to match our theme */
 .slide__content pre code.hljs {
-  background: var(--mantle) !important;
-  border-radius: 8px;
-  padding: 1.4rem 1.6rem;
-  font-family: 'IBM Plex Mono', monospace;
+  background: transparent !important;
+  border-radius: 12px;
+  padding: 1.5rem 1.7rem;
+  font-family: var(--font-mono);
   font-size: inherit;
-  line-height: 1.65;
+  line-height: calc(1.66 * var(--type-lead));
+  letter-spacing: 0;
 }
 
 /* Inline code */
 .slide__content :not(pre) > code {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.88em;
-  background: var(--surface0);
-  color: var(--green);
-  border-radius: 4px;
-  padding: 0.15em 0.45em;
-  border: 1px solid var(--surface1);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--surface-soft);
+  color: var(--accent-3);
+  border-radius: 5px;
+  padding: 0.16em 0.42em;
+  border: 1px solid var(--hairline);
+  letter-spacing: 0;
 }
 
 /* ── Blockquotes ──────────────────────────────────────────────────────── */
 .slide__content blockquote {
-  border-left: 3px solid var(--mauve);
-  padding: 0.6rem 1.5rem;
-  margin: 1rem 0;
-  background: var(--mauve-alpha);
-  border-radius: 0 6px 6px 0;
+  position: relative;
+  padding: 0.78em 1.25em 0.78em 1.7em;
+  margin: 1.2rem 0;
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 10px 10px 0;
   color: var(--subtext1);
-  font-size: clamp(0.95rem, 1.4vw, 1.2rem);
+  font-size: calc(clamp(1rem, 1.5vw, 1.3rem) * var(--type-body));
+  max-width: 60ch;
+}
+
+.slide__content blockquote::before {
+  content: '\\201C';
+  position: absolute;
+  /* em here is the glyph's own 2.6em, not the quote's. */
+  left: 0.16em;
+  top: 0.04em;
+  font-family: var(--font-display);
+  font-size: 2.6em;
+  line-height: 1;
+  color: var(--accent-line);
+  pointer-events: none;
 }
 
 .slide__content blockquote p {
   font-size: inherit;
   margin-bottom: 0;
   color: inherit;
+  max-width: none;
 }
 
 /* ── Tables ───────────────────────────────────────────────────────────── */
 .slide__content table {
   border-collapse: collapse;
   width: 100%;
-  margin: 1rem 0;
-  font-size: clamp(0.85rem, 1.2vw, 1.05rem);
+  margin: 1.2rem 0;
+  font-size: calc(clamp(0.85rem, 1.2vw, 1.05rem) * var(--type-code));
+  /* Rules, not boxes: a grid of borders fights the text for attention. */
+  border-bottom: 1px solid var(--hairline);
 }
 
 .slide__content th {
-  background: var(--surface0);
-  color: var(--lavender);
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--font-display);
   font-weight: 600;
-  padding: 0.65rem 1rem;
+  font-size: 0.86em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.5rem 1rem;
   text-align: left;
-  border: 1px solid var(--surface1);
-  border-bottom: 2px solid var(--mauve);
+  border: none;
+  border-bottom: 2px solid var(--accent-line);
 }
 
 .slide__content td {
-  padding: 0.55rem 1rem;
-  border: 1px solid var(--surface0);
+  padding: 0.6rem 1rem;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
   color: var(--subtext1);
 }
 
 .slide__content tr:nth-child(even) td {
-  background: var(--surface0-alpha);
+  background: var(--surface-soft);
 }
 
 /* ── Links ────────────────────────────────────────────────────────────── */
 .slide__content a {
-  color: var(--blue);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1px;
+  color: var(--accent-2);
+  text-decoration: none;
+  background: linear-gradient(var(--accent-2), var(--accent-2)) 0 100% / 100% 1px no-repeat;
+  padding-bottom: 2px;
+  transition: color 0.18s ease, background-size 0.18s ease;
 }
 
 .slide__content a:hover {
-  color: var(--lavender);
+  color: var(--accent);
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-size: 100% 2px;
 }
 
 /* ── Inline images (no positioning) ──────────────────────────────────── */
 .slide__content img {
   max-width: 100%;
   max-height: 55vh;
-  border-radius: 6px;
+  border-radius: 10px;
   display: block;
-  margin: 0.75rem auto;
+  margin: 1rem auto;
+  box-shadow: var(--shadow-md);
 }
 
 /* ── Embeds: raw HTML iframe / video ─────────────────────────────────── */
@@ -467,56 +524,59 @@ export const SLIDE_CSS = `html, body {
   max-width: 100%;
   aspect-ratio: 16 / 9;
   height: auto;
-  margin: 1rem auto;
-  border: 1px solid var(--surface1);
-  border-radius: 8px;
+  margin: 1.1rem auto;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
   background: var(--mantle);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-md);
 }
 
 .slide__content video {
   display: block;
   max-width: 100%;
   max-height: 60vh;
-  margin: 1rem auto;
-  border-radius: 8px;
+  margin: 1.1rem auto;
+  border-radius: 12px;
   background: var(--crust);
   object-fit: contain;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-md);
 }
 
 /* ── Inline HTML accents ──────────────────────────────────────────────── */
 .slide__content kbd {
   display: inline-block;
-  font-family: inherit;
-  font-size: 0.82em;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
   background: var(--surface0);
   border: 1px solid var(--surface2);
   border-bottom-width: 2px;
-  border-radius: 5px;
-  padding: 0.1em 0.45em;
-  color: var(--lavender);
+  border-radius: 6px;
+  padding: 0.12em 0.45em;
+  color: var(--text);
   white-space: nowrap;
 }
 
 .slide__content mark {
-  background: var(--mauve-alpha);
-  color: var(--yellow);
-  border-bottom: 2px solid var(--yellow);
-  border-radius: 2px;
-  padding: 0.05em 0.2em;
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 -0.42em 0 var(--accent-soft);
+  border-radius: 3px;
+  padding: 0.05em 0.24em;
+  font-weight: 600;
 }
 
 /* ── Horizontal rule ──────────────────────────────────────────────────── */
 .slide__content hr {
   border: none;
-  border-top: 1px solid var(--surface1);
-  margin: 1.5rem 0;
+  height: 1px;
+  margin: 1.8rem 0;
+  background: linear-gradient(90deg, var(--accent-line), var(--hairline) 40%, transparent);
 }`;
 
 /** Presentation chrome: HUD, arrows, overview, pets, cursor, print rules. */
 const CHROME_CSS = `/* ── HUD (progress + counter) ────────────────────────────────────────── */
 #hud {
+  font-family: var(--font-mono);
   position: fixed;
   bottom: 0;
   left: 0;
@@ -532,7 +592,7 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
 
 #progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--mauve), var(--blue), var(--teal));
+  background: var(--gradient);
   transition: width 0.3s ease;
   width: 0%;
 }
@@ -569,6 +629,7 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
 
 /* ── Overview mode ────────────────────────────────────────────────────── */
 #overview {
+  font-family: var(--font-mono);
   position: fixed;
   inset: 0;
   background: var(--crust);
@@ -584,8 +645,8 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
 
 .overview-thumb {
   background: var(--base);
-  border: 2px solid var(--surface0);
-  border-radius: 8px;
+  border: 1px solid var(--surface0);
+  border-radius: 12px;
   cursor: pointer;
   overflow: hidden;
   aspect-ratio: 16/9;
@@ -596,8 +657,8 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
-.overview-thumb:hover { border-color: var(--mauve); transform: scale(1.02); }
-.overview-thumb.is-current { border-color: var(--blue); }
+.overview-thumb:hover { border-color: var(--accent); transform: translateY(-3px) scale(1.02); box-shadow: var(--shadow-md); }
+.overview-thumb.is-current { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2); }
 
 .overview-thumb__number {
   position: absolute;
@@ -621,6 +682,7 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
 
 /* ── Kbd hint ─────────────────────────────────────────────────────────── */
 #kbd-hint {
+  font-family: var(--font-mono);
   position: fixed;
   bottom: 2.2rem;
   left: 50%;
@@ -649,13 +711,15 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
 }
 
 /* ── Blinking cursor ──────────────────────────────────────────────────── */
+/* Parked where an h1's cap height sits, so it reads as the title's caret. */
 #cursor {
   position: fixed;
-  top: 4rem;
-  right: 6rem;
+  top: var(--slide-pad-y);
+  right: var(--slide-pad-x);
   width: 12px;
-  height: clamp(2rem, 4.5vw, 3.4rem);
-  background: var(--mauve);
+  height: calc(clamp(2rem, 4.5vw, 3.4rem) * var(--type-display));
+  background: var(--accent);
+  box-shadow: 0 0 22px var(--glow);
   z-index: 100;
   pointer-events: none;
   animation: cursor-blink 1.1s step-start infinite;
@@ -686,6 +750,7 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
 #fs-hint.hidden { opacity: 0; pointer-events: none; }
 
 #fs-hint__inner {
+  font-family: var(--font-mono);
   text-align: center;
   color: var(--subtext1);
   font-size: 0.9rem;
@@ -700,10 +765,10 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
   display: inline-block;
   background: var(--surface0);
   border: 1px solid var(--surface1);
-  border-radius: 4px;
+  border-radius: 5px;
   padding: 0.1em 0.5em;
-  font-family: inherit;
-  color: var(--mauve);
+  font-family: var(--font-mono);
+  color: var(--accent);
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────── */
@@ -764,15 +829,18 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
   }
 
   .slide__content {
-    max-height: calc(7.5in - 8rem) !important;
+    max-height: calc(7.5in - var(--slide-pad-y) * 2) !important;
   }
+
+  /* The staggered entrance would freeze mid-flight on paper. */
+  .slide__content > * { animation: none !important; opacity: 1 !important; transform: none !important; }
 
   .slide__split {
-    height: calc(7.5in - 8rem) !important;
+    height: calc(7.5in - var(--slide-pad-y) * 2) !important;
   }
 
-  .slide__image-panel { max-height: calc(7.5in - 8rem) !important; }
-  .slide__image-panel img { max-height: calc(7.5in - 9rem) !important; }
+  .slide__image-panel { max-height: calc(7.5in - var(--slide-pad-y) * 2) !important; }
+  .slide__image-panel img { max-height: calc(7.5in - var(--slide-pad-y) * 2 - 1rem) !important; }
   .slide__content img { max-height: 4in !important; }
   .slide__content iframe, .slide__content video { max-height: 4in !important; }
 
@@ -826,9 +894,9 @@ const PRESENTER_CSS = `/* ── HUD tool strip ──────────�
 
 .hud-btn:hover { color: var(--text); border-color: var(--surface1); }
 .hud-btn.is-on {
-  color: var(--mauve);
-  border-color: var(--mauve);
-  background: var(--mauve-alpha);
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 
 .hud-btn kbd {
@@ -910,9 +978,9 @@ const PRESENTER_CSS = `/* ── HUD tool strip ──────────�
   background: radial-gradient(circle,
     rgba(255,255,255,0.95) 0%,
     var(--red) 38%,
-    rgba(243,139,168,0.35) 62%,
-    rgba(243,139,168,0) 74%);
-  box-shadow: 0 0 18px 7px rgba(243,139,168,0.45);
+    var(--glow) 62%,
+    transparent 74%);
+  box-shadow: 0 0 20px 8px var(--glow);
   z-index: 380;
   pointer-events: none;
   display: none;
@@ -950,10 +1018,11 @@ body.laser-on, body.laser-on #board.is-drawing { cursor: none; }
   position: absolute;
   inset: 0;
   background: var(--crust-overlay);
-  backdrop-filter: blur(3px);
+  backdrop-filter: blur(4px);
 }
 
 #help__panel {
+  font-family: var(--font-mono);
   position: relative;
   width: min(780px, 92vw);
   max-height: 84vh;
@@ -963,7 +1032,7 @@ body.laser-on, body.laser-on #board.is-drawing { cursor: none; }
   background: var(--mantle);
   border: 1px solid var(--surface1);
   border-radius: 12px;
-  box-shadow: 0 30px 90px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-lg);
 }
 
 #help__head {
@@ -1008,7 +1077,7 @@ body.laser-on, body.laser-on #board.is-drawing { cursor: none; }
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: var(--mauve);
+  color: var(--accent);
   margin-bottom: 0.45rem;
 }
 
@@ -1047,28 +1116,52 @@ body.laser-on, body.laser-on #board.is-drawing { cursor: none; }
   line-height: 1.7;
 }`;
 
-export function generateHtml(slides: Slide[], title: string, autoFullscreen = false, theme: ThemeName = "dark"): string {
-  const t = THEMES[theme];
+/** The two faces a deck may override, each `null` for "leave it to the theme". */
+export interface FontChoice {
+  head?: string | null;
+  body?: string | null;
+}
+
+export function generateHtml(
+  slides: Slide[],
+  title: string,
+  autoFullscreen = false,
+  themeInput: ThemeName = DEFAULT_THEME,
+  sizeInput: SizeName = DEFAULT_SIZE,
+  fonts: FontChoice = {}
+): string {
+  const theme = resolveThemeName(themeInput);
+  const size = resolveSizeName(sizeInput);
+  const head = findFont(fonts.head);
+  const body = findFont(fonts.body);
+  const fontAttrs =
+    (head ? ` data-head="${head}"` : "") + (body ? ` data-body="${body}"` : "");
   const slideHtml = slides.map((s, i) => renderSlide(s, i)).join("\n");
   const total = slides.length;
 
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}">
+<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-size="${size}"${fontAttrs}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escAttr(title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="${t.hljs}">
+  <link href="${googleFontsHref([theme], [head, body])}" rel="stylesheet">
+  <link rel="stylesheet" href="${hljsHref(theme)}">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <style>
 ${RESET_CSS}
 
 ${themeRootCss(theme)}
 
+${sizeRootCss(size)}
+
+${fontOverrideCss()}
+
 ${SLIDE_CSS}
+
+${DECOR_CSS}
 
 ${CHROME_CSS}
 
@@ -1076,6 +1169,8 @@ ${PRESENTER_CSS}
   </style>
 </head>
 <body>
+
+<div id="backdrop" aria-hidden="true"></div>
 
 <div id="presentation">
 ${slideHtml}

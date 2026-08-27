@@ -321,7 +321,7 @@ export const SNIPPETS: Snippet[] = [
   { id: "act-html",     group: "Actions", label: "Export as HTML",           hint: "One standalone page holding the whole deck, ready to host or send.", syntax: "", action: "html" },
   { id: "act-open",     group: "Actions", label: "Import a Markdown file",   hint: "Loads a local .md in as a new deck, leaving the others alone.", syntax: "", action: "open" },
   { id: "act-grid",     group: "Actions", label: "Toggle grid preview",      hint: "See every slide at once, click one to jump there.",         syntax: "", action: "grid",     keys: "Cmd G" },
-  { id: "act-theme",    group: "Actions", label: "Toggle light / dark",      hint: "Switches the preview and the editor together.",             syntax: "", action: "theme",    keys: "Cmd Shift L" },
+  { id: "act-theme",    group: "Actions", label: "Theme and type size",     hint: "Fourteen palettes with their own fonts and backdrops, at four type sizes. Arrows preview live, brackets resize.", syntax: "", action: "theme",    keys: "Cmd Shift L" },
   { id: "act-guide",    group: "Actions", label: "Open the guide",           hint: "Every layout, style, and embed this editor supports.",      syntax: "", action: "guide",    keys: "Cmd /" },
   { id: "act-decks",    group: "Actions", label: "Switch deck",              hint: "Every deck you have written, kept in this browser.",          syntax: "", action: "decks",     keys: "Cmd O" },
   { id: "act-new",      group: "Actions", label: "New deck",                 hint: "Starts an empty deck and keeps the current one in the library.", syntax: "", action: "new" },

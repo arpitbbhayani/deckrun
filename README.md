@@ -4,6 +4,8 @@ Write slides in Markdown, run a local server, and present in the browser. No bui
 
 Point it at a file to present it. Run it with no file and you get a Markdown editor with the live deck beside it, and every deck you write kept in your browser.
 
+Fourteen themes come built in, each with its own palette, its own type, and its own animated geometry behind the slides, and each can be set at four type sizes. Adding a fifteenth theme is one object literal.
+
 While presenting you get the tools a talk actually needs: a laser pointer, a pen for drawing on the slide, a blank canvas to sketch on, a blackout key, and `?` for every control.
 
 ![Slide showing a code-heavy presentation with syntax highlighting](https://github.com/user-attachments/assets/07b0659c-f82c-44b2-8ecd-815dfd081c49)
@@ -41,8 +43,16 @@ present-md slides.md --no-open
 # Show a launch overlay that enters fullscreen on the first key or click
 present-md slides.md --fullscreen
 
-# Use the light theme
-present-md slides.md --theme light
+# Pick one of the fourteen themes, at one of four type sizes
+present-md slides.md --theme paper
+present-md slides.md --theme paper --size xl
+
+# Or set the two faces yourself
+present-md slides.md --theme tokyo --head-font playfair --body-font lora
+
+present-md --list-themes
+present-md --list-sizes
+present-md --list-fonts
 ```
 
 On start, the CLI prints the slide count and the local URL:
@@ -70,11 +80,17 @@ The server binds to `127.0.0.1` only, so the deck is never exposed on the networ
 | `-p, --port <number>` | `7890`  | Port to serve the presentation on                      |
 | `--no-open`           | `false` | Start the HTTP server without opening the browser      |
 | `--fullscreen`        | `false` | Prompt to enter fullscreen on the first key or click   |
-| `--theme <name>`      | `dark`  | Color theme, either `dark` or `light`                  |
+| `--theme <name>`      | `midnight` | Any of the fourteen themes, by id                   |
+| `--size <name>`       | `m`     | Type size: `s`, `m`, `l`, or `xl`                       |
+| `--head-font <name>`  |         | Override the theme's heading and title face             |
+| `--body-font <name>`  |         | Override the theme's body face                          |
+| `--list-themes`       |         | Print every theme with its mood and blurb, then exit    |
+| `--list-sizes`        |         | Print every type size with what it is for, then exit    |
+| `--list-fonts`        |         | Print every face and its kind, then exit                |
 | `-v, --version`       |         | Print the version number                               |
 | `-h, --help`          |         | Print help for the command                             |
 
-Any value other than `light` for `--theme` falls back to `dark`. In the editor, `--theme` sets the starting theme, and the toggle in the top bar switches it live.
+An unknown `--theme`, `--size`, or font is an error rather than a silent fallback, so a typo does not quietly hand you the default. `dark` and `light` still name the two original palettes. In the editor, `--theme` and `--size` set the starting look and `Cmd Shift L` opens the picker to change either one live.
 
 ## The editor
 
@@ -82,11 +98,28 @@ Run `present-md` with no file and it serves an editor instead of a deck: Markdow
 
 ```bash
 present-md
-present-md --theme light      # start the editor in the light palette
+present-md --theme paper --size l   # start the editor in a given look
+present-md --head-font syne         # and a face of your own
 present-md -p 3000            # editor on another port
 ```
 
 The preview is not an approximation. Every keystroke is parsed by the same parser the CLI uses, and the slides render inside an iframe fixed at 1600x900 with the deck's own stylesheet. Pressing present POSTs the Markdown back to the server, which builds the deck exactly as `present-md file.md` would. The output is byte-identical.
+
+### The two bars
+
+The top bar is for decisions: the deck name, the library, and then everything
+that changes what the deck looks like — `theme`, `font`, and the `S M L XL`
+type size — with `guide`, `insert`, `import`, `export`, and `present` beside
+them.
+
+The bottom bar is for counts and status: caret position, word count, slide
+count, a tip line, and any message the editor has for you. Nothing that only
+tells you where you are belongs in a bar you reach for to act.
+
+The top bar wraps rather than scrolls when a window is narrow, since a
+scrollable bar would clip the menus that hang out of it. Before it wraps it
+sheds the keyboard hints, then `import` and `guide`, both of which the command
+palette also carries.
 
 ### Writing
 
@@ -115,7 +148,7 @@ The guide and the palette carry every directive, so the layouts are one keystrok
 
 ### The deck library
 
-Every deck you write is kept in this browser, not just the last one. The top bar shows how many there are, and `Cmd O` opens the library.
+Every deck you write is kept in this browser, not just the last one. The `decks` button in the top bar shows how many there are, and `Cmd O` opens the library.
 
 - Each row shows the deck's name, slide count, size, and when you last touched it. Click one, or use the arrows and enter, to open it.
 - Decks are listed most recently edited first, so the one you want is usually at the top.
@@ -129,7 +162,7 @@ Storage layout: an index under `presentmd.decks.v1` holds metadata only, and eac
 
 ### Saving
 
-The open deck autosaves to `localStorage` half a second after you stop typing, the way a local-first drawing tool does. The top bar shows the save state and the time of the last write.
+The open deck autosaves to `localStorage` half a second after you stop typing, the way a local-first drawing tool does. A successful save says nothing — it is automatic and it is reliable, and a clock ticking in the corner is not information. Only a failure speaks up, in the status bar and in a toast.
 
 - Nothing is uploaded. The server is on `127.0.0.1` and only ever sees Markdown you are actively previewing.
 - Storage is scoped to the origin, which includes the port. Decks written on `:7890` are not visible on `:3000`, so stay on the default port or pass the same `-p` each time.
@@ -147,7 +180,7 @@ The `export` button in the top bar opens a menu with three formats. All three ar
 | PDF        | `Cmd Shift S` | A real `.pdf` file, one 16:9 page per slide, styling intact           |
 | HTML       |               | One standalone `.html` page holding the whole deck                   |
 
-PDF export does not hand you a print dialog. The server drives a headless browser over the built deck and streams back the finished file, so there is nothing to configure and nothing to get wrong. Pages are 13.333in by 7.5in, the standard widescreen slide size, with no margins: the theme, code block surfaces, table fills, and background images all come through, and the HUD, arrows, cursor, pets, and speaker notes are stripped.
+PDF export does not hand you a print dialog. The server drives a headless browser over the built deck and streams back the finished file, so there is nothing to configure and nothing to get wrong. Pages are 13.333in by 7.5in, the standard widescreen slide size, with no margins: the theme, its backdrop geometry, code block surfaces, table fills, and background images all come through, and the HUD, arrows, cursor, pets, and speaker notes are stripped.
 
 It uses a Chromium-family browser already on your machine and installs nothing. Chrome, Chromium, Edge, and Brave are found automatically in their usual locations; `PRESENT_MD_BROWSER` (or `CHROME_PATH`) points at one somewhere else. A render takes a few seconds, and only one runs at a time.
 
@@ -155,7 +188,7 @@ With no such browser on the machine, the editor falls back to opening the deck w
 
 The HTML export is the same page `present-md` serves: styles and the navigation runtime are inlined, so it opens from disk, and keyboard, touch, overview, and fullscreen all still work. Two things do not travel with it, since it is one file rather than a bundle:
 
-- Fonts and syntax highlighting load from a CDN, so a viewer needs a connection to see them exactly as you do.
+- Fonts and syntax highlighting load from a CDN, so a viewer needs a connection to see them exactly as you do. The theme's colors and its backdrop are inline, so those hold up offline.
 - Images and videos referenced by path stay on your disk. Ship them alongside, or host the page where those paths resolve.
 
 ### Preview controls
@@ -179,7 +212,7 @@ The HTML export is the same page `present-md` serves: styles and the navigation 
 | `Cmd I`             | Italic                     |
 | `Cmd E`             | Inline code                |
 | `Cmd G`             | Toggle grid preview        |
-| `Cmd Shift L`       | Toggle light and dark      |
+| `Cmd Shift L`       | Theme and type size picker  |
 | `Alt Up`, `Alt Down`| Previous and next slide    |
 | `Esc`               | Close a menu, the palette, or the guide |
 
@@ -365,16 +398,186 @@ Images with no directive stay inline, centered in the document flow and capped a
 
 ## Themes
 
-Two built-in themes, both on the Catppuccin palette:
+Fourteen themes, eight dark and six light. A theme is not just a palette: each
+one brings its own display, body, and monospace faces, its own Highlight.js
+grammar colors, and its own animated geometry behind the slides.
 
-- `dark`, the default, is Catppuccin Mocha with Tokyo Night Dark code highlighting
-- `light` is Catppuccin Latte with Atom One Light code highlighting, with muted colors darkened for projector contrast
+| id           | mood  | what it is                                                          |
+| ------------ | ----- | ------------------------------------------------------------------- |
+| `midnight`   | dark  | Catppuccin Mocha. Violet on deep indigo, drifting orbs               |
+| `tokyo`      | dark  | Tokyo Night. Neon cyan over a wireframe grid                         |
+| `nord`       | dark  | Arctic frost blue on polar slate, with slow contour waves            |
+| `dracula`    | dark  | Purple and hot pink over charcoal, lit by a gradient mesh            |
+| `gruvbox`    | dark  | Warm amber and moss on retro brown, hatched like graph paper         |
+| `rosepine`   | dark  | Rosé Pine. Muted iris and gold on plum, under a slow aurora          |
+| `forest`     | dark  | Everforest sage on deep pine, rippling in concentric rings           |
+| `neon`       | dark  | Electric cyan and magenta on true black, raked by light beams        |
+| `daylight`   | light | Catppuccin Latte, contrast-tuned for a projector. Dot matrix         |
+| `arctic`     | light | Nord inverted. Frost blue on cool paper, with contour waves          |
+| `solarized`  | light | The classic low-glare cream, paired with Lora for long prose         |
+| `paper`      | light | Crimson serif on warm cream. Editorial, print-first, very legible    |
+| `rosequartz` | light | Rosé Pine Dawn. Blush and iris on linen, with soft orbs              |
+| `swiss`      | light | Black on white, one red. Heavy grotesk, tight tracking, hard grid    |
 
 ```bash
-present-md slides.md --theme light
+present-md slides.md --theme paper
+present-md --list-themes
 ```
 
-The theme is baked into the generated page at launch, so switching themes means restarting with a different flag. Colors are emitted as CSS custom properties on `:root`, which makes them straightforward to override if you fork the generator.
+`dark` and `light` are kept as aliases for `midnight` and `daylight`, so older
+commands and scripts keep working. So are `mocha`, `latte`, `tokyo-night`,
+`rose-pine`, and `rose-quartz`.
+
+In a file-backed deck the theme is baked into the page at launch, so switching
+means restarting with a different flag. In the editor it is live: `Cmd Shift L`
+opens a picker where the arrow keys preview each theme on the real deck as you
+move, `Enter` keeps the one you land on, and `Esc` puts back the one you had.
+The same picker carries the type size. Both choices are remembered per browser
+and travel into the deck you present and the PDF you export.
+
+### Backdrops
+
+Every theme names one of ten backdrop patterns, drawn behind the slides in the
+theme's own accent colors and drifting slowly enough to read as depth rather
+than as motion: `orbs`, `grid`, `dots`, `topo`, `beams`, `rings`, `waves`,
+`mesh`, `aurora`, and `none`.
+
+The whole backdrop is CSS custom properties and gradients — no canvas, no
+images, no JavaScript — so it survives into the PDF, where it is re-attached to
+each page (a fixed element does not repeat across a paged medium). Anyone who
+has `prefers-reduced-motion` set gets the geometry without the drift.
+
+### Type size
+
+Any theme can be set at four sizes, so the two choices compose instead of
+multiplying into fifty-six presets:
+
+| id   | name    | what it is for                                                  |
+| ---- | ------- | --------------------------------------------------------------- |
+| `s`  | small   | More on a slide. Dense reference decks, close screens.           |
+| `m`  | medium  | The default. Reads from the middle of a normal room.             |
+| `l`  | large   | A wide room, or a talk of a handful of lines a slide.            |
+| `xl` | x-large | Readable from the back row. Expect three or four lines a slide.  |
+
+```bash
+present-md slides.md --size xl
+present-md --list-sizes
+```
+
+The scale is not one multiplier over everything. Headings and prose pull in
+different directions as a deck grows: at `xl` the point is to get the *reading*
+text to the back row, and the headings are already legible, so prose grows
+further than they do — 1.38× against 1.24×. At `s` the reverse. Leading tightens
+as the type grows so lines stay in one block, and the slide gives back some of
+its padding so the extra size has somewhere to go. `m` is exactly 1 across the
+board, so it is the sizing the stylesheet states literally and the other three
+are honest multiples of it.
+
+Sizes are set in `SIZE_SPECS` in `src/themes.ts`, in the same shape as the
+themes: a display, body, and code multiplier, a leading factor, and the slide
+padding. List indents, bullet markers, and the blockquote glyph are all in `em`,
+so they track whatever size is on rather than drifting into the text.
+
+In the editor the size lives in the same picker as the theme (`Cmd Shift L`),
+where `[` and `]` step it. Unlike the theme, which is previewed and can be
+abandoned with `Esc`, a size click sticks right away. It is remembered per
+browser, applies to every theme, and travels into the deck you present and the
+PDF you export.
+
+### Faces
+
+Headings use the theme's display face, body copy its body face, and code, key
+caps, and the presenter chrome its monospace face. Faces come from Google
+Fonts in a single request; the browser only downloads the files a rendered
+slide actually paints.
+
+The heading and the body face can each be replaced without leaving the theme,
+and they are chosen **separately** — a serif heading over a sans body, or the
+reverse, is a setting rather than a fork:
+
+```bash
+present-md slides.md --theme tokyo --head-font playfair --body-font lora
+present-md slides.md --body-font newsreader     # heading stays the theme's
+present-md --list-fonts
+```
+
+Twenty faces, grouped sans, serif, and mono: `inter`, `spaceGrotesk`, `sora`,
+`manrope`, `figtree`, `outfit`, `archivo`, `syne`, `bricolage`, `workSans`,
+`plexSans`, `fraunces`, `playfair`, `newsreader`, `lora`, `plexMono`,
+`jetbrains`, `firaCode`, `spaceMono`, `sourceCodePro`. Their human names work
+too, so `--head-font "Playfair Display"` is the same as `--head-font playfair`.
+
+The monospace face is not overridable on purpose: code wants the face the
+palette's syntax highlighting was chosen against.
+
+Overrides are attributes, not a second palette. `[data-head]` and `[data-body]`
+carry the same specificity as `[data-theme]` and are emitted after it, so
+source order decides and the override wins. No attribute means the theme's own
+face — which is why there is no "default" entry to keep in step with anything,
+and why a face the deck does not recognise falls back silently rather than
+leaving a slide unstyled.
+
+In the editor the two live in one `font` menu in the top bar, side by side:
+heading on the left, body on the right, every row set in the face it offers.
+Picking does not close the menu, because choosing a heading and then a body is
+one decision. Both are remembered per browser and travel into the deck you
+present and the PDF you export.
+
+### Type and motion
+
+Slides also assemble rather than appear: each top-level block on a slide rises
+into place a beat after the one above it. That stagger is turned off in the
+editor preview, where the slide is rebuilt on every keystroke, and in the PDF.
+`prefers-reduced-motion` turns it off everywhere.
+
+### Writing your own theme
+
+Themes live in `src/themes.ts`. Append one entry to `SPECS` and it appears
+everywhere at once: the `--theme` flag, `--list-themes`, the editor's picker,
+the live preview, the HTML export, and the PDF. Nothing else needs touching.
+
+An entry is four things:
+
+- **`neutrals`** — an eleven-step ramp from the page's outermost background
+  (`crust`) to its strongest foreground (`text`). Light themes run the same
+  direction: `crust` is still the backdrop, `text` is still the ink.
+- **`accents`** — eleven hues, named after the Catppuccin slots so existing
+  palettes port across by copy and paste. They are the deck's paint box:
+  `<mark>`, list markers, table headers, and the five pen colors all draw from
+  here.
+- **`roles`** — which three of those colors lead. `accent` carries h1, the
+  caret, focus rings, and every piece of chrome; `accent2` carries h2 and
+  links; `accent3` carries h3. Point them at any neutral or accent key — that
+  is how `nord` leads with frost blue while `gruvbox` leads with amber.
+- **`type`** — a display face, a body face, a mono face, and the weight,
+  tracking, and casing the display face wants. Faces come from the `FONTS`
+  catalog at the top of the file; add an entry there to use a new one.
+
+Plus `decor` for the backdrop and `hljs` for the code stylesheet.
+
+```ts
+seafoam: {
+  label: "seafoam",
+  mood: "dark",
+  blurb: "Pale green on graphite, with a dot matrix.",
+  neutrals: { crust: "#0f1413", mantle: "#141a19", /* … eleven in all */ },
+  accents:  { teal: "#7fd6c1", blue: "#78b7d0", /* … eleven in all */ },
+  roles: { accent: "teal", accent2: "blue", accent3: "green" },
+  type: { display: "sora", body: "inter", mono: "jetbrains", weight: 700 },
+  decor: "dots",
+  hljs: `${HL}atom-one-dark.min.css`,
+},
+```
+
+Everything else is derived from those four inputs — the accent tints, the
+overlay scrims, the shadows (black on dark themes, tinted with the ink color on
+light ones), the hairlines, the h1 rule gradient, and the backdrop's own
+colors. That is deliberate: a new theme cannot fall out of step with itself,
+and there is nothing to hand-tune per surface.
+
+The palette is emitted as CSS custom properties, once per theme under a
+`[data-theme]` selector in the editor and preview and once on `:root` in a
+built deck, so overriding a single value in a fork stays a one-line change.
 
 ## Navigation and controls
 
@@ -463,7 +666,7 @@ Press `F` at any time to toggle fullscreen. Browsers only grant fullscreen from 
 From the editor, press `Cmd Shift S` or pick PDF from the `export` menu, and a finished `.pdf` downloads. From a presented deck, print it with `Ctrl+P` or `Cmd+P`. Both produce the same pages.
 
 - `@page` sets the page box to 13.333in by 7.5in with no margins, so every slide is one full-bleed 16:9 page. There is no orientation to choose.
-- `print-color-adjust: exact` keeps the theme, the code block surfaces, the table fills, and background images, whether or not "Background graphics" is ticked in the dialog.
+- `print-color-adjust: exact` keeps the theme, its backdrop, the code block surfaces, the table fills, and background images, whether or not "Background graphics" is ticked in the dialog.
 - Slides are sized in absolute units for print. Viewport units resolve against the page box in paged media, which is why a deck laid out in `vw` and `vh` came out as clipped portrait pages.
 - The HUD, arrows, overview, cursor, pets, keyboard hint, fullscreen prompt, annotation canvas, laser pointer, blackout, and controls overlay are all hidden.
 - Speaker notes are stripped at parse time, so they never reach the PDF.
@@ -586,7 +789,7 @@ present-md examples/example-1.md
 present-md
 
 # Run the technical talk in light theme on port 3000
-present-md examples/example-2.md -p 3000 --theme light
+present-md examples/example-2.md -p 3000 --theme solarized --size l
 
 # Run fullscreen without opening a browser
 present-md examples/example-1.md --fullscreen --no-open
@@ -621,16 +824,19 @@ npm run dev -- examples/example-1.md
 npm run dev
 ```
 
+`dev` runs the TypeScript through [tsx](https://tsx.is). The `"module": "NodeNext"` setting means the source imports carry `.js` extensions, and neither `ts-node --esm` nor Node's own type stripping remaps those back to the `.ts` files on Node 20 and up — tsx does. Tested on Node 18, 20, 22, and 24.
+
 The source:
 
 - `src/index.ts` is the CLI, the HTTP server, the editor routes, and port selection
 - `src/parser.ts` splits slides, extracts notes, and resolves image directives
-- `src/generate.ts` holds the themes, the slide CSS, and the deck runtime
+- `src/themes.ts` is the theme registry and the type scale: palettes, font catalog, backdrop patterns, size presets, and the CSS they all emit
+- `src/generate.ts` holds the slide CSS, the presenter chrome, and the deck runtime
 - `src/preview.ts` is the editor's preview iframe, sharing the slide CSS with the deck
 - `src/editor.ts` is the editor page: highlighting, palette, guide, nudges, autosave
 - `src/editor-content.ts` is the snippet registry, tips, and welcome deck that the guide, the palette, and the nudges all read from
 
-The deck and the editor preview share `RESET_CSS`, `SLIDE_CSS`, and the palettes out of `generate.ts`, which is what keeps the preview honest. Change a slide style once and both move together.
+The deck and the editor preview share `RESET_CSS`, `SLIDE_CSS`, and `DECOR_CSS` out of `generate.ts`, and their palettes out of `themes.ts`, which is what keeps the preview honest. Change a slide style once and both move together.
 
 Release steps live in [PUBLISHING.md](PUBLISHING.md).
 

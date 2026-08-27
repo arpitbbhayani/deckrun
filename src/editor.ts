@@ -1,4 +1,18 @@
-import { RESET_CSS, themeSwitchableCss, type ThemeName } from "./generate.js";
+import { RESET_CSS } from "./generate.js";
+import {
+  DEFAULT_SIZE,
+  DEFAULT_THEME,
+  decorOf,
+  findFont,
+  fontSummaries,
+  googleFontsHref,
+  resolveSizeName,
+  sizeSummaries,
+  themeSummaries,
+  themeSwitchableCss,
+  type SizeName,
+  type ThemeName,
+} from "./themes.js";
 import {
   SNIPPETS,
   SNIPPET_GROUPS,
@@ -7,9 +21,18 @@ import {
 } from "./editor-content.js";
 import { PREVIEW_WIDTH, PREVIEW_HEIGHT } from "./preview.js";
 
-function bootstrapJson(theme: ThemeName): string {
+function bootstrapJson(
+  theme: ThemeName,
+  size: SizeName,
+  fonts: { head: string | null; body: string | null }
+): string {
   const payload = {
     theme,
+    themes: themeSummaries(),
+    size,
+    sizes: sizeSummaries(),
+    fonts,
+    faces: fontSummaries(),
     width: PREVIEW_WIDTH,
     height: PREVIEW_HEIGHT,
     groups: SNIPPET_GROUPS,
@@ -22,16 +45,22 @@ function bootstrapJson(theme: ThemeName): string {
 }
 
 /** The Markdown editor served when `present-md` is launched without a file. */
-export function generateEditorHtml(theme: ThemeName = "dark"): string {
+export function generateEditorHtml(
+  theme: ThemeName = DEFAULT_THEME,
+  sizeInput: SizeName = DEFAULT_SIZE,
+  fontInput: { head?: string | null; body?: string | null } = {}
+): string {
+  const size = resolveSizeName(sizeInput);
+  const fonts = { head: findFont(fontInput.head), body: findFont(fontInput.body) };
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}">
+<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>present-md editor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap" rel="stylesheet">
+  <link href="${googleFontsHref()}" rel="stylesheet">
   <style>
 ${RESET_CSS}
 
@@ -42,7 +71,7 @@ html, body {
   overflow: hidden;
   background: var(--crust);
   color: var(--text);
-  font-family: 'IBM Plex Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -59,15 +88,59 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 #app { display: flex; flex-direction: column; height: 100%; }
 
 /* ── Top bar ──────────────────────────────────────────────────────────── */
+/* Ten controls live here and there is no room to spare. The bar wraps rather
+   than scrolls: a scrollable top bar would clip the dropdowns that hang out of
+   it, since overflow-x also clips vertically. */
 #topbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  height: 46px;
-  flex: 0 0 46px;
-  padding: 0 12px;
+  gap: 7px 9px;
+  min-height: 46px;
+  flex: 0 0 auto;
+  padding: 7px 12px;
   background: var(--mantle);
   border-bottom: 1px solid var(--surface0);
+}
+
+/* The right-hand controls wrap as a block and stay right-aligned, so a narrow
+   window never leaves "present" stranded at the far left of a second row. */
+#topbar-right {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px 9px;
+  min-width: 0;
+}
+
+/* Before it wraps, shed what is least load-bearing: the keyboard hints, then
+   the two buttons whose action the command palette also carries. */
+#font-label {
+  display: inline-block;
+  max-width: 136px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+@media (max-width: 1460px) {
+  .btn kbd { display: none; }
+}
+
+@media (max-width: 1300px) {
+  #font-label { max-width: 76px; }
+  #docname { width: 130px; }
+}
+
+@media (max-width: 1140px) {
+  #btn-open { display: none; }
+}
+
+@media (max-width: 1040px) {
+  #btn-guide { display: none; }
 }
 
 #brand {
@@ -82,7 +155,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 #brand .caret {
   width: 8px;
   height: 15px;
-  background: var(--mauve);
+  background: var(--accent);
   animation: blink 1.1s step-start infinite;
 }
 
@@ -99,18 +172,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 
 #docname:hover { border-color: var(--surface0); }
-#docname:focus { outline: none; border-color: var(--mauve); color: var(--text); }
+#docname:focus { outline: none; border-color: var(--accent); color: var(--text); }
 
-.chip {
-  font-size: 11px;
-  color: var(--overlay1);
-  border: 1px solid var(--surface0);
-  border-radius: 999px;
-  padding: 3px 9px;
-  white-space: nowrap;
-}
+/* Both of these sat in the top bar and were the loudest things in it. They
+   belong with the other counters, at the bottom. */
+#chip-slides { white-space: nowrap; }
 
-#save-state { font-size: 11px; color: var(--overlay0); white-space: nowrap; }
+#save-state { white-space: nowrap; color: var(--overlay1); }
+#save-state:empty { display: none; }
 #save-state.ok { color: var(--green); }
 #save-state.warn { color: var(--yellow); }
 #save-state.err { color: var(--red); }
@@ -131,22 +200,97 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
-.btn:hover { border-color: var(--mauve); color: var(--text); background: var(--mauve-alpha); }
+.btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
 .btn kbd { font: inherit; font-size: 10px; color: var(--overlay0); }
+
+/* The type size, as a segment rather than a menu: four options is few enough
+   that hiding them behind a click would cost more than the width it saves. */
+#topbar-size { flex: 0 0 auto; height: 30px; align-items: stretch; }
+#topbar-size .sz-btn {
+  min-width: 0;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--overlay1);
+}
+#topbar-size .sz-btn:hover { background: var(--accent-soft); color: var(--text); }
+#topbar-size .sz-btn.is-on { background: var(--surface0); color: var(--accent); }
+
+/* ── Font menu ────────────────────────────────────────────────────────── */
+.menu__pop--font { min-width: 452px; padding: 0; }
+
+#ff-cols { display: flex; }
+.ff-col { flex: 1 1 0; min-width: 0; padding: 7px; }
+.ff-col + .ff-col { border-left: 1px solid var(--surface0); }
+
+.ff-col__title {
+  padding: 4px 8px 7px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--overlay0);
+}
+
+.ff-list { max-height: 58vh; overflow-y: auto; }
+
+.ff-row {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border-left: 2px solid transparent;
+  text-align: left;
+}
+
+.ff-row:hover { background: var(--surface-soft); border-left-color: var(--accent); }
+.ff-row.is-on { border-left-color: var(--accent); }
+.ff-row.is-on .ff-row__name { color: var(--accent); }
+
+/* Each row is set in the face it offers, which is the only honest preview. */
+.ff-row__name {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ff-row--auto .ff-row__name { font-family: var(--font-mono); font-size: 12px; color: var(--subtext0); }
+
+.ff-foot {
+  padding: 8px 14px;
+  border-top: 1px solid var(--surface0);
+  font-size: 10px;
+  color: var(--overlay0);
+}
+
+/* The swatch on the theme button, so the current palette is visible at rest. */
+.th-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  background: var(--gradient);
+  transform: rotate(45deg);
+}
 .btn--icon { padding: 0 9px; }
 
 .btn--primary {
   color: var(--crust);
   font-weight: 600;
   border-color: transparent;
-  background: linear-gradient(135deg, var(--mauve), var(--blue));
+  background: var(--gradient);
 }
 
 /* The gradient has to be restated: .btn:hover is a class plus a pseudo-class,
    so its faint tint outranks the plain .btn--primary background and the button
    would drop to near-black text on a barely-there surface. */
 .btn--primary:hover {
-  background: linear-gradient(135deg, var(--mauve), var(--blue));
+  background: var(--gradient);
   filter: brightness(1.12);
   border-color: transparent;
   color: var(--crust);
@@ -172,7 +316,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   background: var(--surface0);
   transition: background 0.15s ease;
 }
-#divider:hover::after, #divider.is-dragging::after { background: var(--mauve); }
+#divider:hover::after, #divider.is-dragging::after { background: var(--accent); }
 
 #pane-prev {
   flex: 1 1 auto;
@@ -190,7 +334,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   inset: 0;
   margin: 0;
   padding: 18px 20px 45vh 20px;
-  font-family: 'IBM Plex Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-family: var(--font-mono);
   font-size: 13.5px;
   font-weight: 400;
   line-height: 1.75;
@@ -211,7 +355,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   overflow-y: auto;
   overflow-x: hidden;
   color: transparent;
-  caret-color: var(--mauve);
+  caret-color: var(--accent);
   resize: none;
   outline: none;
 }
@@ -219,9 +363,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 #src::selection { background: var(--surface1); color: transparent; }
 
 /* Markdown tokens */
-.t-h1 { color: var(--mauve); font-weight: 700; }
-.t-h2 { color: var(--blue); font-weight: 600; }
-.t-h3 { color: var(--sky); font-weight: 500; }
+.t-h1 { color: var(--accent); font-weight: 700; }
+.t-h2 { color: var(--accent-2); font-weight: 600; }
+.t-h3 { color: var(--accent-3); font-weight: 500; }
 .t-h4 { color: var(--teal); }
 .t-strong { color: var(--peach); font-weight: 600; }
 .t-em { color: var(--subtext1); font-style: italic; }
@@ -229,7 +373,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .t-fence { color: var(--overlay1); }
 .t-codeline { color: var(--subtext1); }
 .t-quote { color: var(--subtext0); font-style: italic; }
-.t-marker { color: var(--mauve); }
+.t-marker { color: var(--accent); }
 .t-link { color: var(--blue); }
 .t-url { color: var(--overlay0); }
 .t-img { color: var(--sapphire); }
@@ -238,7 +382,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .t-html { color: var(--pink); }
 .t-table { color: var(--lavender); }
 
-.t-sep { position: relative; color: var(--mauve); counter-increment: sld; }
+.t-sep { position: relative; color: var(--accent); counter-increment: sld; }
 .t-sep::after {
   content: 'slide ' counter(sld);
   position: absolute;
@@ -258,10 +402,10 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px dashed var(--mauve);
+  border: 2px dashed var(--accent);
   border-radius: 12px;
-  background: var(--mauve-alpha);
-  color: var(--mauve);
+  background: var(--accent-soft);
+  color: var(--accent);
   letter-spacing: 0.05em;
   pointer-events: none;
 }
@@ -279,9 +423,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   padding: 11px 13px;
   background: var(--base);
   border: 1px solid var(--surface1);
-  border-left: 2px solid var(--mauve);
+  border-left: 2px solid var(--accent);
   border-radius: 9px;
-  box-shadow: 0 12px 34px rgba(0,0,0,0.35);
+  box-shadow: var(--shadow-md);
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;
@@ -294,14 +438,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--mauve);
+  color: var(--accent);
   margin-bottom: 4px;
 }
 #nudge__text { font-size: 12.5px; color: var(--subtext1); line-height: 1.6; }
 #nudge__text code {
   font: inherit;
   color: var(--green);
-  background: var(--surface0-alpha);
+  background: var(--surface-soft);
   border-radius: 4px;
   padding: 0.05em 0.3em;
 }
@@ -313,7 +457,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: 6px;
   padding: 4px 8px;
 }
-.nudge-btn:hover { border-color: var(--mauve); color: var(--text); }
+.nudge-btn:hover { border-color: var(--accent); color: var(--text); }
 .nudge-btn--x { padding: 4px 7px; color: var(--overlay0); }
 
 /* ── Preview ──────────────────────────────────────────────────────────── */
@@ -332,7 +476,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 /* ── Dropdown menu ────────────────────────────────────────────────────── */
 .menu { position: relative; display: inline-flex; }
 .menu__chev { font-size: 9px; color: var(--overlay0); }
-.menu.is-open > .btn { border-color: var(--mauve); color: var(--text); background: var(--mauve-alpha); }
+.menu.is-open > .btn { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
 
 .menu__pop {
   position: absolute;
@@ -346,7 +490,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   background: var(--mantle);
   border: 1px solid var(--surface1);
   border-radius: 10px;
-  box-shadow: 0 18px 46px rgba(0,0,0,0.45);
+  box-shadow: var(--shadow-lg);
 }
 
 .menu.is-open .menu__pop { display: flex; }
@@ -362,8 +506,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 
 .menu__pop button:hover, .menu__pop button.is-sel {
-  background: var(--surface0-alpha);
-  border-left-color: var(--mauve);
+  background: var(--surface-soft);
+  border-left-color: var(--accent);
 }
 
 /* A fixed name column keeps the three rows on one grid. */
@@ -414,7 +558,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--surface0);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+  box-shadow: var(--shadow-lg);
 }
 
 #notes {
@@ -451,10 +595,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--overlay0);
 }
 
-#tipbar { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0; }
+#statusbar > span { flex: 0 0 auto; }
+#tipbar { flex: 1 1 auto !important; display: flex; align-items: center; gap: 8px; min-width: 0; }
 #tipbar .tag {
   flex: 0 0 auto;
-  color: var(--mauve);
+  color: var(--accent);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 9px;
@@ -466,7 +611,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 /* ── Command palette ──────────────────────────────────────────────────── */
 #palette, #guide, #library { position: fixed; inset: 0; z-index: 40; display: none; }
 #palette.is-on, #guide.is-on, #library.is-on { display: block; }
-.backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(2px); }
+.backdrop { position: absolute; inset: 0; background: var(--scrim); backdrop-filter: blur(3px); }
 
 #pal-box, #lib-box {
   position: relative;
@@ -475,7 +620,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   background: var(--mantle);
   border: 1px solid var(--surface1);
   border-radius: 14px;
-  box-shadow: 0 30px 90px rgba(0,0,0,0.55);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
 }
 
@@ -509,7 +654,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: 6px;
   padding: 4px 9px;
 }
-#lib-head button:hover { border-color: var(--mauve); color: var(--text); background: var(--mauve-alpha); }
+#lib-head button:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
 
 .lib-row {
   display: flex;
@@ -521,8 +666,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   cursor: pointer;
 }
 
-.lib-row.is-sel { background: var(--surface0-alpha); border-left-color: var(--mauve); }
-.lib-row.is-current .lib-row__name { color: var(--blue); }
+.lib-row.is-sel { background: var(--surface-soft); border-left-color: var(--accent); }
+.lib-row.is-current .lib-row__name { color: var(--accent-2); }
 .lib-row__main { flex: 1 1 auto; min-width: 0; }
 .lib-row__name {
   color: var(--text);
@@ -541,7 +686,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: 5px;
   padding: 3px 7px;
 }
-.lib-row__acts button:hover { border-color: var(--mauve); color: var(--text); }
+.lib-row__acts button:hover { border-color: var(--accent); color: var(--text); }
 .lib-row__acts button.danger:hover { border-color: var(--red); color: var(--red); }
 
 .pal-group {
@@ -562,7 +707,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   cursor: pointer;
 }
 
-.pal-row.is-sel { background: var(--surface0-alpha); border-left-color: var(--mauve); }
+.pal-row.is-sel { background: var(--surface-soft); border-left-color: var(--accent); }
 .pal-row__main { flex: 1 1 auto; min-width: 0; }
 .pal-row__label { color: var(--text); font-size: 12.5px; }
 .pal-row__hint { color: var(--overlay1); font-size: 11px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -574,7 +719,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   white-space: nowrap;
   font-size: 11px;
   color: var(--green);
-  background: var(--surface0-alpha);
+  background: var(--surface-soft);
   border-radius: 5px;
   padding: 3px 7px;
 }
@@ -599,7 +744,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   flex-direction: column;
   background: var(--mantle);
   border-left: 1px solid var(--surface1);
-  box-shadow: -22px 0 70px rgba(0,0,0,0.45);
+  box-shadow: -22px 0 70px var(--scrim);
 }
 
 #guide-head {
@@ -618,7 +763,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   font-size: 9px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--mauve);
+  color: var(--accent);
   margin-bottom: 9px;
 }
 
@@ -654,7 +799,209 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: 6px;
   padding: 4px 9px;
 }
-.gcard__ins:hover { border-color: var(--mauve); color: var(--text); background: var(--mauve-alpha); }
+.gcard__ins:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+
+/* ── Theme picker ─────────────────────────────────────────────────────── */
+#themes { position: fixed; inset: 0; z-index: 44; display: none; }
+#themes.is-on { display: block; }
+
+#th-box {
+  position: relative;
+  width: min(1120px, 95vw);
+  margin: 5vh auto 0;
+  background: var(--mantle);
+  border: 1px solid var(--surface1);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+#th-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--surface0);
+  font-size: 13px;
+  color: var(--text);
+}
+
+#th-head .th-head__sub { flex: 1 1 auto; font-size: 11px; color: var(--overlay1); }
+#th-head .th-head__sub kbd {
+  font: inherit;
+  font-size: 10px;
+  color: var(--subtext0);
+  border: 1px solid var(--surface1);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+/* ── Type size ────────────────────────────────────────────────────────── */
+#th-size {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 18px;
+  border-bottom: 1px solid var(--surface0);
+  background: var(--surface-soft);
+}
+
+#th-size__label {
+  flex: 0 0 auto;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--overlay0);
+}
+
+#th-size__blurb {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--overlay1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#th-size__seg { flex: 0 0 auto; display: flex; gap: 5px; }
+
+#th-size__keys { flex: 0 0 auto; display: flex; gap: 3px; }
+#th-size__keys kbd {
+  font: inherit;
+  font-size: 10px;
+  color: var(--overlay0);
+  border: 1px solid var(--surface1);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.sz-btn {
+  min-width: 40px;
+  padding: 5px 9px;
+  border: 1px solid var(--surface1);
+  border-radius: 7px;
+  font-size: 11px;
+  color: var(--subtext0);
+  text-align: center;
+  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+
+.sz-btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+
+.sz-btn.is-on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+/* Each button is set at the ratio it stands for, so the row is its own key. */
+.sz-btn__glyph { font-family: var(--font-display); letter-spacing: -0.02em; }
+#th-head button {
+  font-size: 11px;
+  color: var(--subtext0);
+  border: 1px solid var(--surface1);
+  border-radius: 6px;
+  padding: 4px 9px;
+}
+#th-head button:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+
+#th-list { max-height: 76vh; overflow-y: auto; padding: 14px 16px 18px; }
+
+.th-group {
+  padding: 4px 2px 8px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--overlay0);
+}
+
+.th-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.th-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface1);
+  border-radius: 12px;
+  background: var(--base);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
+}
+
+.th-card:hover, .th-card.is-sel {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.th-card.is-current { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* The thumbnail is a real slide in miniature: the theme's own background,
+   its own accent, its own faces. Nothing about it is a stand-in. */
+.th-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  padding: 13px 14px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--surface0);
+}
+
+.th-thumb__glow {
+  position: absolute;
+  width: 150%;
+  height: 150%;
+  right: -55%;
+  top: -60%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.th-thumb__title {
+  position: relative;
+  font-size: 15px;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.th-thumb__rule { position: relative; width: 34px; height: 2px; border-radius: 2px; margin-bottom: 9px; }
+.th-thumb__line { position: relative; height: 3px; border-radius: 2px; margin-bottom: 5px; }
+.th-thumb__code {
+  position: relative;
+  margin-top: 8px;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 8px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.th-meta { padding: 9px 12px 11px; }
+.th-meta__top { display: flex; align-items: baseline; gap: 7px; }
+.th-meta__name { flex: 1 1 auto; font-size: 12.5px; color: var(--text); }
+.th-meta__mood {
+  flex: 0 0 auto;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--overlay0);
+}
+.th-meta__blurb {
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--overlay1);
+  margin-top: 4px;
+}
 
 /* ── Toasts ───────────────────────────────────────────────────────────── */
 #toasts {
@@ -681,7 +1028,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border: 1px solid var(--surface1);
   border-left: 2px solid var(--teal);
   border-radius: 9px;
-  box-shadow: 0 12px 34px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-md);
   pointer-events: all;
   animation: rise 0.18s ease;
 }
@@ -695,7 +1042,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: 6px;
   padding: 3px 8px;
 }
-.toast button:hover { border-color: var(--mauve); color: var(--text); }
+.toast button:hover { border-color: var(--accent); color: var(--text); }
 
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
@@ -705,7 +1052,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   #pane-edit { flex: 1 1 50%; width: auto !important; min-height: 0; }
   #pane-prev { flex: 1 1 50%; min-height: 0; }
   #divider { display: none; }
-  #topbar { overflow-x: auto; }
 }
   </style>
 </head>
@@ -715,9 +1061,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     <span id="brand">present-md<span class="caret"></span></span>
     <input id="docname" value="deck" spellcheck="false" title="Deck name, also the download filename">
     <button class="btn" id="btn-decks" title="Switch between the decks in this browser">decks <span id="deck-count">1</span> <kbd>Cmd O</kbd></button>
-    <span class="chip" id="chip-slides">0 slides</span>
-    <span id="save-state">loading</span>
     <span class="spacer"></span>
+    <span id="topbar-right">
     <button class="btn" id="btn-guide" title="Everything you can put on a slide">guide <kbd>Cmd /</kbd></button>
     <button class="btn" id="btn-palette" title="Insert anything">insert <kbd>Cmd K</kbd></button>
     <button class="btn" id="btn-open" title="Load a local .md file in as a new deck">import</button>
@@ -741,8 +1086,32 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         </button>
       </div>
     </span>
-    <button class="btn btn--icon" id="btn-theme" title="Toggle light / dark">theme</button>
+    <button class="btn" id="btn-theme" title="Pick a theme">
+      <span class="th-dot" id="theme-dot"></span>
+      <span id="theme-label">theme</span>
+      <kbd>Cmd Shift L</kbd>
+    </button>
+    <span class="menu">
+      <button class="btn" id="btn-font" aria-haspopup="true" aria-expanded="false" title="Heading and body faces">
+        <span id="font-label">font</span> <span class="menu__chev">&#9662;</span>
+      </button>
+      <div class="menu__pop menu__pop--font" id="font-menu">
+        <div id="ff-cols">
+          <div class="ff-col">
+            <div class="ff-col__title">heading &amp; title</div>
+            <div class="ff-list" id="ff-head"></div>
+          </div>
+          <div class="ff-col">
+            <div class="ff-col__title">body</div>
+            <div class="ff-list" id="ff-body"></div>
+          </div>
+        </div>
+        <div class="ff-foot">Code keeps the theme's monospace face.</div>
+      </div>
+    </span>
+    <span class="seg" id="topbar-size" title="Type size"></span>
     <button class="btn btn--primary" id="btn-present" title="Open the real deck in a new tab">present <kbd>Cmd Enter</kbd></button>
+    </span>
   </header>
 
   <main id="panes">
@@ -793,6 +1162,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   <footer id="statusbar">
     <span id="pos">Ln 1, Col 1</span>
     <span id="words">0 words</span>
+    <span id="chip-slides">0 slides</span>
+    <span id="save-state"></span>
     <span id="tipbar">
       <span class="tag">tip</span>
       <span id="tip-text"></span>
@@ -843,10 +1214,28 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   </div>
 </div>
 
+<div id="themes">
+  <div class="backdrop" data-close="themes"></div>
+  <div id="th-box">
+    <div id="th-head">
+      <span>Themes</span>
+      <span class="th-head__sub">Arrow keys preview a theme live &nbsp;·&nbsp; enter keeps it &nbsp;·&nbsp; esc puts it back</span>
+      <button data-close="themes">close</button>
+    </div>
+    <div id="th-size">
+      <span id="th-size__label">type size</span>
+      <span id="th-size__seg"></span>
+      <span id="th-size__keys"><kbd>[</kbd><kbd>]</kbd></span>
+      <span id="th-size__blurb">Applies to every theme, and sticks right away.</span>
+    </div>
+    <div id="th-list"></div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 <input type="file" id="file-md" accept=".md,.markdown,text/markdown,text/plain" hidden>
 
-<script type="application/json" id="bootstrap">${bootstrapJson(theme)}</script>
+<script type="application/json" id="bootstrap">${bootstrapJson(theme, size, fonts)}</script>
 <script>
 (function () {
   'use strict';
@@ -860,6 +1249,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     deck:    'presentmd.deck.',
     current: 'presentmd.current.v1',
     theme:   'presentmd.theme.v1',
+    size:    'presentmd.size.v1',
+    head:    'presentmd.font.head.v1',
+    body:    'presentmd.font.body.v1',
     split:   'presentmd.split.v1',
     mode:    'presentmd.mode.v1',
     nudge:   'presentmd.nudges.v1',
@@ -957,6 +1349,33 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     $('deck-count').textContent = String(loadIndex().length);
   }
 
+  // ── Themes ─────────────────────────────────────────────────────────────
+  var THEMES = D.themes;
+  var THEME_BY_ID = {};
+  THEMES.forEach(function (t) { THEME_BY_ID[t.id] = t; });
+
+  /** A theme id we can actually apply, whatever localStorage happens to hold. */
+  function pickTheme(id) {
+    return THEME_BY_ID[id] ? id : (THEME_BY_ID[D.theme] ? D.theme : THEMES[0].id);
+  }
+
+  var SIZES = D.sizes;
+  var SIZE_BY_ID = {};
+  SIZES.forEach(function (z) { SIZE_BY_ID[z.id] = z; });
+
+  function pickSize(id) {
+    return SIZE_BY_ID[id] ? id : (SIZE_BY_ID[D.size] ? D.size : 'm');
+  }
+
+  var FACES = D.faces;
+  var FACE_BY_ID = {};
+  FACES.forEach(function (f) { FACE_BY_ID[f.id] = f; });
+
+  /** null means "whatever the theme says", which is not a face id. */
+  function pickFont(id) {
+    return FACE_BY_ID[id] ? id : null;
+  }
+
   // ── Elements ───────────────────────────────────────────────────────────
   var $ = function (id) { return document.getElementById(id); };
   var src = $('src'), hl = $('hl'), measure = $('measure');
@@ -976,9 +1395,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     notes: [],
     index: 0,
     mode: lsGet(K.mode, 'single') === 'grid' ? 'grid' : 'single',
-    theme: lsGet(K.theme, D.theme) === 'light' ? 'light' : 'dark',
+    theme: pickTheme(lsGet(K.theme, D.theme)),
+    size: pickSize(lsGet(K.size, D.size)),
+    head: pickFont(lsGet(K.head, D.fonts.head)),
+    body: pickFont(lsGet(K.body, D.fonts.body)),
     frameReady: false,
-    pending: null,
     overflow: {},
     dismissed: {},
     activeNudge: null,
@@ -1161,8 +1582,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   // ── Preview plumbing ───────────────────────────────────────────────────
+  /** Dropped rather than queued until the frame is up: see the ready handler. */
   function post(msg) {
-    if (!state.frameReady) { state.pending = msg; return; }
+    if (!state.frameReady) return;
     frame.contentWindow.postMessage(msg, '*');
   }
 
@@ -1273,17 +1695,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   // ── Autosave ───────────────────────────────────────────────────────────
   var saveTimer = null;
 
-  function stamp() {
-    var d = new Date();
-    function p(n) { return (n < 10 ? '0' : '') + n; }
-    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
-  }
-
   function saveNow() {
     var ok = lsSet(K.deck + state.deckId, src.value) && touchCurrent();
     if (ok) {
-      elSave.className = 'ok';
-      elSave.textContent = 'saved ' + stamp();
+      elSave.className = '';
+      elSave.textContent = '';
     } else {
       elSave.className = 'err';
       elSave.textContent = 'not saved: storage full';
@@ -1292,8 +1708,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   function scheduleSave() {
-    elSave.className = 'warn';
-    elSave.textContent = 'saving';
     if (saveTimer) clearTimeout(saveTimer);
     // Writing a megabyte of Markdown costs real time. Back off on big decks.
     saveTimer = setTimeout(saveNow, src.value.length > 1024 * 1024 ? 1500 : 500);
@@ -1401,7 +1815,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       id: 'no-table',
       test: function (ctx) {
         return ctx.count >= 5 && !ctx.hasTable
-          ? 'Numbers land harder in a table than in bullets. Zebra rows and a mauve header come for free.'
+          ? 'Numbers land harder in a table than in bullets. Zebra rows and an accented header come for free.'
           : null;
       },
       snippet: 'table'
@@ -1713,15 +2127,19 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     });
   }
 
-  function closeOverlays() {
+  function closeOverlays(keepFocus) {
+    // A dropdown outranks the picker in the stacking order, so it has to go
+    // down too or it floats over the modal that just opened.
+    closeMenu();
     palette.classList.remove('is-on');
     guide.classList.remove('is-on');
     $('library').classList.remove('is-on');
-    src.focus();
+    if ($('themes').classList.contains('is-on')) closeThemes(true);
+    if (!keepFocus) src.focus();
   }
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-close]'), function (el) {
-    el.addEventListener('click', closeOverlays);
+    el.addEventListener('click', function () { closeOverlays(); });
   });
 
   // ── Actions ────────────────────────────────────────────────────────────
@@ -1779,7 +2197,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     fetch('/__pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markdown: src.value, theme: state.theme, title: $('docname').value })
+      body: JSON.stringify({
+        markdown: src.value,
+        theme: state.theme,
+        size: state.size,
+        head: state.head,
+        body: state.body,
+        title: $('docname').value
+      })
     })
       .then(function (r) {
         if (r.status === 501) {
@@ -1806,7 +2231,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       .then(function () {
         pdfInFlight = false;
         elSave.className = '';
-        elSave.textContent = 'ready';
+        elSave.textContent = '';
         scheduleSave();
       });
   }
@@ -1837,6 +2262,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       body: JSON.stringify({
         markdown: src.value,
         theme: state.theme,
+        size: state.size,
+        head: state.head,
+        body: state.body,
         title: $('docname').value,
         print: !!forPrint
       })
@@ -1861,12 +2289,317 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       });
   }
 
-  function setTheme(next) {
-    state.theme = next;
-    document.documentElement.dataset.theme = next;
-    lsSet(K.theme, next);
-    post({ type: 'theme', theme: next });
+  /**
+   * Applies a theme everywhere at once: the editor chrome, the preview iframe,
+   * and the decor attribute the backdrop patterns key off. A remember of false
+   * means the picker is only previewing, so arrowing past a theme never
+   * overwrites the one the user actually chose.
+   */
+  function setTheme(next, remember) {
+    var id = pickTheme(next);
+    state.theme = id;
+    document.documentElement.dataset.theme = id;
+    document.documentElement.dataset.decor = THEME_BY_ID[id].decor;
+    if (remember !== false) lsSet(K.theme, id);
+    pushLook();
   }
+
+  /**
+   * Type size is orthogonal to the theme: every theme can be set at any of the
+   * four, so the two choices compose instead of multiplying into presets.
+   */
+  function setSize(next, remember) {
+    var id = pickSize(next);
+    state.size = id;
+    if (remember !== false) lsSet(K.size, id);
+    pushLook();
+    paintSizeSeg();
+  }
+
+  /**
+   * Heading and body faces are chosen separately, and either can be handed
+   * back to the theme by picking nothing. Passing null is what clears it.
+   */
+  function setFont(slot, id, remember) {
+    if (slot !== 'head' && slot !== 'body') return;
+    var next = pickFont(id);
+    state[slot] = next;
+    if (remember !== false) {
+      // '' rather than a missing key, so a cleared override survives a reload
+      // instead of falling back to whatever the CLI started with.
+      lsSet(slot === 'head' ? K.head : K.body, next || '');
+    }
+    pushLook();
+    paintFontMenu();
+  }
+
+  /** One message for all four, since the preview applies them to one root. */
+  function pushLook() {
+    post({
+      type: 'theme',
+      theme: state.theme,
+      size: state.size,
+      head: state.head,
+      body: state.body
+    });
+    paintThemeButton();
+  }
+
+  function faceLabel(id) {
+    return id && FACE_BY_ID[id] ? FACE_BY_ID[id].name : 'theme';
+  }
+
+  function buildFontMenu() {
+    [['head', 'ff-head'], ['body', 'ff-body']].forEach(function (pair) {
+      var slot = pair[0];
+      var host = $(pair[1]);
+      host.innerHTML = '';
+
+      host.appendChild(fontRow(slot, null, 'theme default', null));
+
+      var lastKind = null;
+      FACES.forEach(function (f) {
+        if (f.kind !== lastKind) {
+          lastKind = f.kind;
+          var head = document.createElement('div');
+          head.className = 'ff-col__title';
+          head.textContent = f.kind;
+          host.appendChild(head);
+        }
+        host.appendChild(fontRow(slot, f.id, f.name, f));
+      });
+    });
+    paintFontMenu();
+  }
+
+  function fontRow(slot, id, label, face) {
+    var b = document.createElement('button');
+    b.className = 'ff-row' + (id ? '' : ' ff-row--auto');
+    b.dataset.slot = slot;
+    if (id) b.dataset.font = id;
+
+    var name = document.createElement('span');
+    name.className = 'ff-row__name';
+    name.textContent = label;
+    if (face) name.style.fontFamily = face.stack;
+    b.appendChild(name);
+
+    return b;
+  }
+
+  function paintFontMenu() {
+    Array.prototype.forEach.call($('font-menu').querySelectorAll('.ff-row'), function (b) {
+      var slot = b.dataset.slot;
+      b.classList.toggle('is-on', (b.dataset.font || null) === state[slot]);
+    });
+    var custom = state.head || state.body;
+    $('font-label').textContent = custom
+      ? faceLabel(state.head) + ' / ' + faceLabel(state.body)
+      : 'font';
+    $('btn-font').title = 'Heading ' + faceLabel(state.head) +
+      ' · body ' + faceLabel(state.body);
+  }
+
+  function paintThemeButton() {
+    var t = THEME_BY_ID[state.theme];
+    $('theme-label').textContent = t ? t.label : 'theme';
+    $('btn-theme').title = t ? t.label + ' — ' + t.blurb : 'Pick a theme';
+  }
+
+  // ── Theme picker ───────────────────────────────────────────────────────
+  function buildSizeSeg(hostId, showBlurb) {
+    var host = $(hostId);
+    host.innerHTML = '';
+    SIZES.forEach(function (z) {
+      var b = document.createElement('button');
+      b.className = 'sz-btn';
+      b.dataset.size = z.id;
+      b.title = z.label + ' — ' + z.blurb;
+
+      var glyph = document.createElement('span');
+      glyph.className = 'sz-btn__glyph';
+      glyph.textContent = z.id.toUpperCase();
+      // Set at the ratio it stands for, so the row doubles as its own legend.
+      glyph.style.fontSize = (10.5 * z.display).toFixed(2) + 'px';
+      b.appendChild(glyph);
+
+      b.addEventListener('click', function () { setSize(z.id, true); });
+      if (showBlurb) {
+        b.addEventListener('mouseenter', function () { showSizeBlurb(z.id); });
+        b.addEventListener('mouseleave', function () { showSizeBlurb(state.size); });
+      }
+      host.appendChild(b);
+    });
+  }
+
+  function showSizeBlurb(id) {
+    var z = SIZE_BY_ID[id];
+    $('th-size__blurb').textContent = z ? z.blurb : '';
+  }
+
+  function paintSizeSeg() {
+    Array.prototype.forEach.call(document.querySelectorAll('.sz-btn'), function (b) {
+      b.classList.toggle('is-on', b.dataset.size === state.size);
+    });
+    showSizeBlurb(state.size);
+  }
+
+  /** Steps the size by one, clamped rather than wrapped. */
+  function nudgeSize(delta) {
+    var at = 0;
+    for (var i = 0; i < SIZES.length; i++) if (SIZES[i].id === state.size) at = i;
+    var next = Math.max(0, Math.min(SIZES.length - 1, at + delta));
+    if (SIZES[next].id !== state.size) setSize(SIZES[next].id, true);
+  }
+
+  var themeCards = [];
+  var themeSel = 0;
+  var themeCommitted = null;
+
+  /** A slide in miniature, painted with the theme's own palette and faces. */
+  function themeThumb(t) {
+    var c = t.colors;
+    var wrap = document.createElement('div');
+    wrap.className = 'th-thumb';
+    wrap.style.background = c.crust;
+
+    var glow = document.createElement('div');
+    glow.className = 'th-thumb__glow';
+    glow.style.background = 'radial-gradient(circle, ' + c.accent + '2e 0%, transparent 68%)';
+    wrap.appendChild(glow);
+
+    var title = document.createElement('div');
+    title.className = 'th-thumb__title';
+    title.textContent = 'Aa';
+    title.style.fontFamily = t.fonts.display;
+    title.style.fontWeight = '700';
+    title.style.color = c.accent;
+    wrap.appendChild(title);
+
+    var rule = document.createElement('div');
+    rule.className = 'th-thumb__rule';
+    rule.style.background = 'linear-gradient(90deg, ' + c.accent + ', ' + c.accent2 + ')';
+    wrap.appendChild(rule);
+
+    [88, 70, 52].forEach(function (pct, i) {
+      var line = document.createElement('div');
+      line.className = 'th-thumb__line';
+      line.style.width = pct + '%';
+      line.style.background = i === 0 ? c.subtext1 : c.overlay1;
+      line.style.opacity = i === 0 ? '0.85' : '0.5';
+      wrap.appendChild(line);
+    });
+
+    var code = document.createElement('div');
+    code.className = 'th-thumb__code';
+    code.textContent = 'const deck = md';
+    code.style.fontFamily = t.fonts.mono;
+    code.style.background = c.mantle;
+    code.style.color = c.accent3;
+    code.style.border = '1px solid ' + c.surface0;
+    wrap.appendChild(code);
+
+    return wrap;
+  }
+
+  function themeCard(t) {
+    var card = document.createElement('button');
+    card.className = 'th-card' + (t.id === state.theme ? ' is-current' : '');
+    card.dataset.theme = t.id;
+    card.appendChild(themeThumb(t));
+
+    var meta = document.createElement('div');
+    meta.className = 'th-meta';
+
+    var top = document.createElement('div');
+    top.className = 'th-meta__top';
+    var name = document.createElement('span');
+    name.className = 'th-meta__name';
+    name.textContent = t.label;
+    var mood = document.createElement('span');
+    mood.className = 'th-meta__mood';
+    mood.textContent = t.mood;
+    top.appendChild(name);
+    top.appendChild(mood);
+
+    var blurb = document.createElement('div');
+    blurb.className = 'th-meta__blurb';
+    blurb.textContent = t.blurb;
+
+    meta.appendChild(top);
+    meta.appendChild(blurb);
+    card.appendChild(meta);
+    return card;
+  }
+
+  function buildThemePicker() {
+    var host = $('th-list');
+    host.innerHTML = '';
+    themeCards = [];
+
+    [['dark', 'dark'], ['light', 'light']].forEach(function (pair) {
+      var list = THEMES.filter(function (t) { return t.mood === pair[0]; });
+      if (!list.length) return;
+
+      var label = document.createElement('div');
+      label.className = 'th-group';
+      label.textContent = pair[1];
+      host.appendChild(label);
+
+      var grid = document.createElement('div');
+      grid.className = 'th-grid';
+      list.forEach(function (t) {
+        var card = themeCard(t);
+        // Hovering previews too, so the mouse gets the same instant feedback
+        // as the arrow keys.
+        card.addEventListener('mouseenter', function () { selectTheme(themeCards.indexOf(card)); });
+        card.addEventListener('click', function () { commitTheme(); });
+        grid.appendChild(card);
+        themeCards.push(card);
+      });
+      host.appendChild(grid);
+    });
+  }
+
+  function selectTheme(i) {
+    if (i < 0 || i >= themeCards.length) return;
+    themeSel = i;
+    themeCards.forEach(function (c, n) { c.classList.toggle('is-sel', n === i); });
+    setTheme(themeCards[i].dataset.theme, false);
+  }
+
+  function openThemes() {
+    closeOverlays(true);
+    themeCommitted = state.theme;
+    buildSizeSeg('th-size__seg', true);
+    paintSizeSeg();
+    buildThemePicker();
+    var at = 0;
+    themeCards.forEach(function (c, n) { if (c.dataset.theme === state.theme) at = n; });
+    $('themes').classList.add('is-on');
+    selectTheme(at);
+    themeCards[themeSel].scrollIntoView({ block: 'nearest' });
+    src.blur();
+  }
+
+  function commitTheme() {
+    themeCommitted = state.theme;
+    lsSet(K.theme, state.theme);
+    closeThemes();
+    var t = THEME_BY_ID[state.theme];
+    toast('Theme set to ' + (t ? t.label : state.theme) + '.');
+  }
+
+  /** Leaving without choosing puts back whatever was on when the picker opened. */
+  function closeThemes(restore) {
+    if (restore && themeCommitted && themeCommitted !== state.theme) {
+      setTheme(themeCommitted, true);
+    }
+    $('themes').classList.remove('is-on');
+    themeCards.forEach(function (c) { c.classList.remove('is-sel'); });
+  }
+
+  function themesOpen() { return $('themes').classList.contains('is-on'); }
 
   function setMode(next) {
     state.mode = next;
@@ -1895,7 +2628,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     updateCaretUi();
     refresh();
     elSave.className = '';
-    elSave.textContent = 'opened ' + meta.name;
+    elSave.textContent = '';
     updateDeckCount();
     if (announce) toast('Opened ' + meta.name);
     src.focus();
@@ -2033,7 +2766,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     else if (name === 'html') exportHtml();
     else if (name === 'open') $('file-md').click();
     else if (name === 'grid') setMode(state.mode === 'grid' ? 'single' : 'grid');
-    else if (name === 'theme') setTheme(state.theme === 'dark' ? 'light' : 'dark');
+    else if (name === 'theme') openThemes();
     else if (name === 'guide') { guide.classList.add('is-on'); }
     else if (name === 'decks') openLibrary();
     else if (name === 'new') newDeck();
@@ -2142,49 +2875,79 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   $('btn-guide').addEventListener('click', function () { runAction('guide'); });
   $('btn-palette').addEventListener('click', openPalette);
   $('btn-open').addEventListener('click', function () { runAction('open'); });
-  // ── Export menu ────────────────────────────────────────────────────────
-  var exportMenu = $('btn-export').parentNode;
+  // ── Dropdown menus ─────────────────────────────────────────────────────
+  // Both the export and font popovers behave the same way, so one open menu is
+  // tracked here rather than each growing its own copy of this.
+  var openMenu = null;
+
+  function menuIsOpen() { return !!openMenu; }
 
   function closeMenu() {
-    exportMenu.classList.remove('is-open');
-    $('btn-export').setAttribute('aria-expanded', 'false');
+    if (!openMenu) return;
+    openMenu.classList.remove('is-open');
+    var btn = openMenu.querySelector('.btn');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    openMenu = null;
   }
 
-  function toggleMenu() {
-    var open = !exportMenu.classList.contains('is-open');
-    exportMenu.classList.toggle('is-open', open);
-    $('btn-export').setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) {
-      var first = $('export-menu').querySelector('button');
-      if (first) first.focus();
-    }
+  function toggleMenu(el) {
+    var wasOpen = openMenu === el;
+    closeMenu();
+    if (wasOpen) return;
+    openMenu = el;
+    el.classList.add('is-open');
+    var btn = el.querySelector('.btn');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    var first = el.querySelector('.menu__pop button');
+    if (first) first.focus();
   }
 
-  $('btn-export').addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(); });
+  /** Wires one dropdown: its trigger, its arrow keys, and its own Escape. */
+  function bindMenu(triggerId, popId, onPick, pickSelector) {
+    var wrap = $(triggerId).parentNode;
+    var pop = $(popId);
 
-  $('export-menu').addEventListener('click', function (e) {
-    var btn = e.target.closest ? e.target.closest('button[data-export]') : null;
-    if (!btn) return;
+    $(triggerId).addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleMenu(wrap);
+    });
+
+    pop.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest(pickSelector) : null;
+      if (!btn) return;
+      onPick(btn);
+    });
+
+    pop.addEventListener('keydown', function (e) {
+      var items = Array.prototype.slice.call(pop.querySelectorAll('button'));
+      var at = items.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        var next = (at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items[next].focus();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMenu();
+        src.focus();
+      }
+    });
+
+    return wrap;
+  }
+
+  bindMenu('btn-export', 'export-menu', function (btn) {
     closeMenu();
     runExport(btn.dataset.export);
-  });
+  }, 'button[data-export]');
 
-  $('export-menu').addEventListener('keydown', function (e) {
-    var items = Array.prototype.slice.call($('export-menu').querySelectorAll('button'));
-    var at = items.indexOf(document.activeElement);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      var next = (at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-      items[next].focus();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      closeMenu();
-      src.focus();
-    }
-  });
+  // The font menu stays open across picks: choosing a heading face and then a
+  // body face is one decision, and closing between them would fight the user.
+  bindMenu('btn-font', 'font-menu', function (btn) {
+    setFont(btn.dataset.slot, btn.dataset.font || null, true);
+  }, 'button[data-slot]');
 
   document.addEventListener('click', function (e) {
-    if (exportMenu.classList.contains('is-open') && !exportMenu.contains(e.target)) closeMenu();
+    if (openMenu && !openMenu.contains(e.target)) closeMenu();
   });
 
   function runExport(kind) {
@@ -2193,6 +2956,30 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     else if (kind === 'html') exportHtml();
   }
   $('btn-theme').addEventListener('click', function () { runAction('theme'); });
+
+  // The picker owns the arrow keys while it is up, and Enter keeps the preview.
+  document.addEventListener('keydown', function (e) {
+    if (!themesOpen() || e.metaKey || e.ctrlKey || e.altKey) return;
+    var cols = 0;
+    if (themeCards.length) {
+      var grid = themeCards[themeSel].parentNode;
+      cols = Math.max(1, Math.round(grid.clientWidth / themeCards[themeSel].offsetWidth));
+    }
+    var step = 0;
+    if (e.key === 'ArrowRight') step = 1;
+    else if (e.key === 'ArrowLeft') step = -1;
+    else if (e.key === 'ArrowDown') step = cols;
+    else if (e.key === 'ArrowUp') step = -cols;
+    else if (e.key === 'Enter') { e.preventDefault(); commitTheme(); return; }
+    else if (e.key === 'Escape') { e.preventDefault(); closeOverlays(); return; }
+    else if (e.key === '[' || e.key === '-') { e.preventDefault(); nudgeSize(-1); return; }
+    else if (e.key === ']' || e.key === '+' || e.key === '=') { e.preventDefault(); nudgeSize(1); return; }
+    else return;
+    e.preventDefault();
+    var next = (themeSel + step + themeCards.length) % themeCards.length;
+    selectTheme(next);
+    themeCards[next].scrollIntoView({ block: 'nearest' });
+  }, true);
   $('btn-present').addEventListener('click', present);
   $('btn-prev').addEventListener('click', function () { setIndex(state.index - 1, true); });
   $('btn-next').addEventListener('click', function () { setIndex(state.index + 1, true); });
@@ -2202,6 +2989,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   // ── Global keys ────────────────────────────────────────────────────────
   document.addEventListener('keydown', function (e) {
     var mod = e.metaKey || e.ctrlKey;
+
+    if (themesOpen()) return;
 
     if ($('library').classList.contains('is-on') && !mod) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -2222,7 +3011,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     }
 
     if (e.key === 'Escape') {
-      if (exportMenu.classList.contains('is-open')) { e.preventDefault(); closeMenu(); src.focus(); return; }
+      if (menuIsOpen()) { e.preventDefault(); closeMenu(); src.focus(); return; }
       if (palette.classList.contains('is-on') || guide.classList.contains('is-on') ||
           $('library').classList.contains('is-on')) {
         e.preventDefault();
@@ -2300,10 +3089,12 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   window.addEventListener('message', function (e) {
     var m = e.data || {};
     if (m.type === 'ready') {
+      // pushLook and pushFrame between them send the whole of the current
+      // state, so a message dropped while the frame was loading is already
+      // superseded by the time it is up.
       state.frameReady = true;
-      post({ type: 'theme', theme: state.theme });
+      pushLook();
       pushFrame();
-      if (state.pending) { var p = state.pending; state.pending = null; post(p); }
     } else if (m.type === 'goto') {
       setMode('single');
       setIndex(m.index, true);
@@ -2351,6 +3142,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   src.scrollTop = 0;
 
   document.documentElement.dataset.theme = state.theme;
+  document.documentElement.dataset.decor = THEME_BY_ID[state.theme].decor;
+  buildSizeSeg('topbar-size', false);
+  buildFontMenu();
+  paintSizeSeg();
+  paintThemeButton();
   $('seg-single').classList.toggle('is-on', state.mode === 'single');
   $('seg-grid').classList.toggle('is-on', state.mode === 'grid');
 
@@ -2372,15 +3168,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       toast('This browser will not let the editor save anything. Download your deck to keep it.', 'err', 'download', download);
     }, 700);
   } else if (firstRun) {
-    elSave.textContent = 'welcome deck loaded';
     setTimeout(function () {
       toast('This deck is yours to overwrite. Press ' + CMD + ' K to see every layout and style.', null, 'open the guide', function () { runAction('guide'); });
     }, 900);
-  } else {
-    elSave.className = '';
-    elSave.textContent = index.length > 1
-      ? 'restored, ' + index.length + ' decks in this browser'
-      : 'restored from this browser';
   }
 
   src.focus();

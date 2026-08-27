@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
-    "dev": "npx ts-node --esm src/index.ts"
+    "dev": "tsx src/index.ts"
   },
   "dependencies": {
     "commander": "^11.1.0",
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "tsx": "^4.23.12",
     "typescript": "^5.3.3"
   }
 }
