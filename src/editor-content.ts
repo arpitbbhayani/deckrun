@@ -350,6 +350,10 @@ export const TIPS: string[] = [
   "Export as PDF from the top bar: a real file, 16:9 pages, no print dialog to wrestle.",
   "Seven bullets is about the ceiling before a slide stops reading from the back row.",
   "Drag the divider to resize. Double-click it to snap back to an even split.",
+  "While presenting, press ? for every control the deck has.",
+  "L turns on a laser pointer while presenting. D gives you a pen to draw with.",
+  "C drops a blank canvas over the slide, for the diagram you did not plan.",
+  "B blacks out the screen mid-talk. Press it again to come back.",
 ];
 
 /** Deck loaded on a first visit. Doubles as the feature tour. */

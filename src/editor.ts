@@ -142,7 +142,15 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   background: linear-gradient(135deg, var(--mauve), var(--blue));
 }
 
-.btn--primary:hover { filter: brightness(1.1); border-color: transparent; color: var(--crust); }
+/* The gradient has to be restated: .btn:hover is a class plus a pseudo-class,
+   so its faint tint outranks the plain .btn--primary background and the button
+   would drop to near-black text on a barely-there surface. */
+.btn--primary:hover {
+  background: linear-gradient(135deg, var(--mauve), var(--blue));
+  filter: brightness(1.12);
+  border-color: transparent;
+  color: var(--crust);
+}
 .btn--primary kbd { color: var(--crust); opacity: 0.7; }
 
 /* ── Panes ────────────────────────────────────────────────────────────── */

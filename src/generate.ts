@@ -538,11 +538,12 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
 }
 
 #slide-counter {
+  flex: 0 0 auto;
   text-align: right;
-  padding: 0.35rem 1.2rem 0.45rem;
   font-size: 0.72rem;
   color: var(--overlay1);
   letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 
 /* ── Nav arrows ───────────────────────────────────────────────────────── */
@@ -775,9 +776,275 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
   .slide__content img { max-height: 4in !important; }
   .slide__content iframe, .slide__content video { max-height: 4in !important; }
 
-  #hud, .nav-arrow, #overview, #kbd-hint, #cursor, #fs-hint, .pet {
+  #hud, .nav-arrow, #overview, #kbd-hint, #cursor, #fs-hint, .pet,
+  #board, #laser, #blackout, #help {
     display: none !important;
   }
+}`;
+
+/**
+ * Presenter tools: the HUD tool strip, the annotation canvas, the laser
+ * pointer, the blackout screen, and the controls overlay.
+ *
+ * Stacking order, from back to front: slides, kbd hint (150), board (180),
+ * HUD (200) — the tool strip has to stay clickable while drawing — overview
+ * (300), laser (380), blackout (420), help (460), fullscreen hint (500).
+ */
+const PRESENTER_CSS = `/* ── HUD tool strip ───────────────────────────────────────────────────── */
+#hud-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.26rem 1.1rem 0.34rem;
+}
+
+#hud-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.hud-btn {
+  pointer-events: all;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.14rem 0.44rem;
+  font: inherit;
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  color: var(--overlay0);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.hud-btn:hover { color: var(--text); border-color: var(--surface1); }
+.hud-btn.is-on {
+  color: var(--mauve);
+  border-color: var(--mauve);
+  background: var(--mauve-alpha);
+}
+
+.hud-btn kbd {
+  font: inherit;
+  font-size: 0.58rem;
+  color: inherit;
+  opacity: 0.7;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 0.28em;
+}
+
+#hud-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--surface1);
+  margin: 0 0.2rem;
+}
+
+/* ── Pen strip (only while the pen is down) ───────────────────────────── */
+#pen-bar {
+  display: none;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+#pen-bar.is-on { display: inline-flex; }
+
+#pen-swatches { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+.swatch {
+  pointer-events: all;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--surface2);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.swatch:hover { transform: scale(1.2); }
+.swatch.is-on { transform: scale(1.35); border-color: var(--text); }
+
+#pen-width {
+  font-size: 0.6rem;
+  color: var(--overlay0);
+  letter-spacing: 0.06em;
+  min-width: 2.2em;
+  text-align: center;
+}
+
+/* ── Annotation canvas ────────────────────────────────────────────────── */
+#board {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  pointer-events: none;
+  touch-action: none;
+  background: transparent;
+  transition: background 0.18s ease;
+}
+
+/* Only the pen makes the canvas swallow clicks, so navigation keeps working
+   whenever annotations are merely on display. */
+#board.is-drawing { pointer-events: all; cursor: crosshair; }
+#board.is-erasing { cursor: cell; }
+#board.is-blank   { background: var(--crust); }
+
+/* ── Laser pointer ────────────────────────────────────────────────────── */
+#laser {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255,255,255,0.95) 0%,
+    var(--red) 38%,
+    rgba(243,139,168,0.35) 62%,
+    rgba(243,139,168,0) 74%);
+  box-shadow: 0 0 18px 7px rgba(243,139,168,0.45);
+  z-index: 380;
+  pointer-events: none;
+  display: none;
+  will-change: transform;
+}
+
+#laser.is-on { display: block; }
+
+/* The dot replaces the cursor, so the real one gets out of the way. */
+body.laser-on, body.laser-on #board.is-drawing { cursor: none; }
+
+/* ── Blackout ─────────────────────────────────────────────────────────── */
+#blackout {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 420;
+  display: none;
+  cursor: pointer;
+}
+
+#blackout.is-on { display: block; }
+
+/* ── Controls overlay ─────────────────────────────────────────────────── */
+#help {
+  position: fixed;
+  inset: 0;
+  z-index: 460;
+  display: none;
+}
+
+#help.is-on { display: block; }
+
+#help__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--crust-overlay);
+  backdrop-filter: blur(3px);
+}
+
+#help__panel {
+  position: relative;
+  width: min(780px, 92vw);
+  max-height: 84vh;
+  overflow-y: auto;
+  margin: 7vh auto 0;
+  padding: 1.4rem 1.7rem 1.7rem;
+  background: var(--mantle);
+  border: 1px solid var(--surface1);
+  border-radius: 12px;
+  box-shadow: 0 30px 90px rgba(0,0,0,0.5);
+}
+
+#help__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+
+#help__head h2 {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+#help__head p { font-size: 0.68rem; color: var(--overlay1); }
+
+#help__head kbd,
+.help-row__keys kbd {
+  display: inline-block;
+  font: inherit;
+  font-size: 0.63rem;
+  background: var(--surface0);
+  border: 1px solid var(--surface1);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05em 0.4em;
+  color: var(--lavender);
+  white-space: nowrap;
+}
+
+#help__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.2rem 2rem;
+}
+
+.help-group__title {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--mauve);
+  margin-bottom: 0.45rem;
+}
+
+.help-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 0.17rem 0;
+  font-size: 0.72rem;
+  color: var(--subtext0);
+}
+
+.help-row__keys { flex: 0 0 auto; display: flex; gap: 0.22rem; }
+
+#help__close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.8rem;
+  background: transparent;
+  border: none;
+  color: var(--overlay0);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#help__close:hover { color: var(--text); }
+
+#help__foot {
+  margin-top: 1.2rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--surface0);
+  font-size: 0.66rem;
+  color: var(--overlay1);
+  line-height: 1.7;
 }`;
 
 export function generateHtml(slides: Slide[], title: string, autoFullscreen = false, theme: ThemeName = "dark"): string {
@@ -804,6 +1071,8 @@ ${themeRootCss(theme)}
 ${SLIDE_CSS}
 
 ${CHROME_CSS}
+
+${PRESENTER_CSS}
   </style>
 </head>
 <body>
@@ -814,7 +1083,45 @@ ${slideHtml}
 
 <div id="hud">
   <div id="progress-bar"><div id="progress-fill"></div></div>
-  <div id="slide-counter"><span id="cur">1</span>&nbsp;/&nbsp;<span id="tot">${total}</span></div>
+  <div id="hud-row">
+    <div id="hud-tools">
+      <button class="hud-btn" id="btn-laser" title="Laser pointer (L)">laser <kbd>L</kbd></button>
+      <button class="hud-btn" id="btn-pen" title="Draw on the slide (D)">pen <kbd>D</kbd></button>
+      <button class="hud-btn" id="btn-blank" title="Blank canvas over the slide (C)">canvas <kbd>C</kbd></button>
+      <button class="hud-btn" id="btn-black" title="Black out the screen (B)">black <kbd>B</kbd></button>
+      <div id="pen-bar">
+        <span id="hud-sep"></span>
+        <span id="pen-swatches"></span>
+        <button class="hud-btn" id="btn-erase" title="Eraser (E)">erase <kbd>E</kbd></button>
+        <button class="hud-btn" id="btn-thin" title="Thinner ([)">&minus;</button>
+        <span id="pen-width">4px</span>
+        <button class="hud-btn" id="btn-thick" title="Thicker (])">+</button>
+        <button class="hud-btn" id="btn-clear" title="Clear this slide (X)">clear <kbd>X</kbd></button>
+      </div>
+      <button class="hud-btn" id="btn-help" title="Show every control (?)">? controls</button>
+    </div>
+    <div id="slide-counter"><span id="cur">1</span>&nbsp;/&nbsp;<span id="tot">${total}</span></div>
+  </div>
+</div>
+
+<canvas id="board"></canvas>
+<div id="laser" aria-hidden="true"></div>
+<div id="blackout" title="Click or press B to come back"></div>
+
+<div id="help" role="dialog" aria-modal="true" aria-label="Presenter controls">
+  <div id="help__backdrop" data-close="help"></div>
+  <div id="help__panel">
+    <button id="help__close" data-close="help" title="Close (Esc)">&times;</button>
+    <div id="help__head">
+      <h2>controls</h2>
+      <p>press <kbd>?</kbd> any time</p>
+    </div>
+    <div id="help__grid"></div>
+    <div id="help__foot">
+      Annotations live per slide and survive navigation, so you can draw on slide 3,
+      move on, and come back to find it as you left it. Nothing is saved to disk.
+    </div>
+  </div>
 </div>
 
 <button class="nav-arrow nav-arrow--prev" id="btn-prev" title="Previous (←)">&#8592;</button>
@@ -824,7 +1131,7 @@ ${slideHtml}
 
 <div id="overview" class="hidden"></div>
 
-<div id="kbd-hint">← → navigate &nbsp;·&nbsp; O overview &nbsp;·&nbsp; F fullscreen &nbsp;·&nbsp; Home/End first/last</div>
+<div id="kbd-hint">← → navigate &nbsp;·&nbsp; O overview &nbsp;·&nbsp; F fullscreen &nbsp;·&nbsp; L laser &nbsp;·&nbsp; D draw &nbsp;·&nbsp; ? controls</div>
 
 ${autoFullscreen ? `<div id="fs-hint">
   <div id="fs-hint__inner">Press any key or click to enter fullscreen</div>
@@ -845,9 +1152,17 @@ ${autoFullscreen ? `<div id="fs-hint">
   const elBtnNext  = document.getElementById('btn-next');
   const elOverview = document.getElementById('overview');
   const elHint     = document.getElementById('kbd-hint');
+  const elBoard    = document.getElementById('board');
+  const elLaser    = document.getElementById('laser');
+  const elBlack    = document.getElementById('blackout');
+  const elHelp     = document.getElementById('help');
+  const elPenBar   = document.getElementById('pen-bar');
+  const elPenWidth = document.getElementById('pen-width');
 
   // ── Syntax highlighting ──────────────────────────────────────────────
-  hljs.highlightAll();
+  // Guarded: the highlighter comes off a CDN, and a deck presented offline
+  // should still navigate rather than die on a missing global.
+  if (window.hljs) hljs.highlightAll();
 
   // ── Slide navigation ─────────────────────────────────────────────────
   function showSlide(next, direction) {
@@ -885,6 +1200,7 @@ ${autoFullscreen ? `<div id="fs-hint">
   }
 
   function updateHud() {
+    redrawBoard();
     elCur.textContent = String(cur + 1);
     const pct = total > 1 ? (cur / (total - 1)) * 100 : 100;
     elFill.style.width = pct + '%';
@@ -939,22 +1255,419 @@ ${autoFullscreen ? `<div id="fs-hint">
     }
   }
 
+  // ── Presenter tools ───────────────────────────────────────────────────
+  // One canvas serves both drawing modes: the pen annotates over the live
+  // slide, and the blank canvas paints the same board opaque so the slide
+  // disappears behind it. Strokes are kept per slide in normalised
+  // coordinates, so a resize or a jump into fullscreen keeps them in place.
+  const ctx = elBoard.getContext('2d');
+  const rootStyle = getComputedStyle(document.documentElement);
+
+  function themeColor(name, fallback) {
+    const v = rootStyle.getPropertyValue('--' + name).trim();
+    return v || fallback;
+  }
+
+  const PEN_COLORS = [
+    themeColor('red',    '#f38ba8'),
+    themeColor('yellow', '#f9e2af'),
+    themeColor('green',  '#a6e3a1'),
+    themeColor('blue',   '#89b4fa'),
+    themeColor('text',   '#cdd6f4'),
+  ];
+  const PEN_WIDTHS = [2, 3, 4, 6, 9, 14];
+  const ERASER_SCALE = 5;
+
+  const strokes = [];           // strokes[slideIndex] = [{ color, width, erase, pts }]
+  let colorIdx = 0;
+  let widthIdx = 2;
+  let stroke = null;            // the stroke being drawn right now
+
+  let penOn   = false;
+  let blankOn = false;
+  let eraseOn = false;
+  let laserOn = false;
+  let blackOn = false;
+  let helpOn  = false;
+
+  const tools = {
+    laser: document.getElementById('btn-laser'),
+    pen:   document.getElementById('btn-pen'),
+    blank: document.getElementById('btn-blank'),
+    black: document.getElementById('btn-black'),
+    erase: document.getElementById('btn-erase'),
+  };
+
+  /** Click handler that drops focus, so Space keeps meaning "next slide". */
+  function onClick(el, fn) {
+    if (!el) return;
+    el.addEventListener('click', function (e) {
+      el.blur();
+      fn(e);
+    });
+  }
+
+  // ── Canvas sizing and painting ───────────────────────────────────────
+  function sizeBoard() {
+    const dpr = window.devicePixelRatio || 1;
+    elBoard.width  = Math.round(window.innerWidth  * dpr);
+    elBoard.height = Math.round(window.innerHeight * dpr);
+    elBoard.style.width  = window.innerWidth  + 'px';
+    elBoard.style.height = window.innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    redrawBoard();
+  }
+
+  function strokeStyle(s) {
+    ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = s.erase ? s.width * ERASER_SCALE : s.width;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+  }
+
+  function paintStroke(s) {
+    const w = window.innerWidth, h = window.innerHeight;
+    if (!s.pts.length) return;
+    strokeStyle(s);
+    ctx.beginPath();
+    ctx.moveTo(s.pts[0][0] * w, s.pts[0][1] * h);
+    if (s.pts.length === 1) {
+      // A tap still deserves a dot.
+      ctx.lineTo(s.pts[0][0] * w + 0.01, s.pts[0][1] * h);
+    } else {
+      for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i][0] * w, s.pts[i][1] * h);
+    }
+    ctx.stroke();
+  }
+
+  /** Draw only the newest segment — repainting everything on every move is
+      wasteful once a slide carries a few dozen strokes. */
+  function paintTip(s) {
+    const w = window.innerWidth, h = window.innerHeight;
+    const n = s.pts.length;
+    if (n < 2) { paintStroke(s); return; }
+    strokeStyle(s);
+    ctx.beginPath();
+    ctx.moveTo(s.pts[n - 2][0] * w, s.pts[n - 2][1] * h);
+    ctx.lineTo(s.pts[n - 1][0] * w, s.pts[n - 1][1] * h);
+    ctx.stroke();
+  }
+
+  function redrawBoard() {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    const list = strokes[cur] || [];
+    for (let i = 0; i < list.length; i++) paintStroke(list[i]);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function hasInk() { return !!(strokes[cur] && strokes[cur].length); }
+
+  // ── Drawing ──────────────────────────────────────────────────────────
+  function pointOf(e) {
+    return [e.clientX / window.innerWidth, e.clientY / window.innerHeight];
+  }
+
+  elBoard.addEventListener('pointerdown', function (e) {
+    if (!penOn) return;
+    e.preventDefault();
+    try { elBoard.setPointerCapture(e.pointerId); } catch (err) {}
+    stroke = {
+      color: PEN_COLORS[colorIdx],
+      width: PEN_WIDTHS[widthIdx],
+      erase: eraseOn,
+      pts: [pointOf(e)],
+    };
+    if (!strokes[cur]) strokes[cur] = [];
+    strokes[cur].push(stroke);
+    paintStroke(stroke);
+  });
+
+  elBoard.addEventListener('pointermove', function (e) {
+    if (!stroke) return;
+    e.preventDefault();
+    stroke.pts.push(pointOf(e));
+    paintTip(stroke);
+  });
+
+  function endStroke() {
+    if (!stroke) return;
+    stroke = null;
+    ctx.globalCompositeOperation = 'source-over';
+    syncTools();
+  }
+
+  elBoard.addEventListener('pointerup', endStroke);
+  elBoard.addEventListener('pointercancel', endStroke);
+  elBoard.addEventListener('pointerleave', endStroke);
+
+  function undoStroke() {
+    const list = strokes[cur];
+    if (!list || !list.length) return;
+    list.pop();
+    redrawBoard();
+    syncTools();
+  }
+
+  function clearSlide() {
+    strokes[cur] = [];
+    redrawBoard();
+    syncTools();
+  }
+
+  // ── Tool state ───────────────────────────────────────────────────────
+  function setPen(on) {
+    penOn = !!on;
+    if (!penOn) {
+      endStroke();
+      // The blank canvas has no meaning without a pen to use on it.
+      blankOn = false;
+      eraseOn = false;
+    }
+    syncTools();
+  }
+
+  function setBlank(on) {
+    blankOn = !!on;
+    // Opening the blank canvas arms the pen; closing it leaves the pen alone.
+    if (blankOn) penOn = true;
+    syncTools();
+  }
+
+  function setEraser(on) {
+    eraseOn = !!on;
+    if (eraseOn) penOn = true;
+    syncTools();
+  }
+
+  function setLaser(on) {
+    laserOn = !!on;
+    syncTools();
+  }
+
+  function setBlack(on) {
+    blackOn = !!on;
+    syncTools();
+  }
+
+  function setColor(i) {
+    colorIdx = Math.max(0, Math.min(PEN_COLORS.length - 1, i));
+    eraseOn = false;
+    penOn = true;
+    syncTools();
+  }
+
+  function nudgeWidth(delta) {
+    widthIdx = Math.max(0, Math.min(PEN_WIDTHS.length - 1, widthIdx + delta));
+    syncTools();
+  }
+
+  const swatches = [];
+  (function buildSwatches() {
+    const host = document.getElementById('pen-swatches');
+    PEN_COLORS.forEach(function (color, i) {
+      const b = document.createElement('button');
+      b.className = 'swatch';
+      b.style.background = color;
+      b.title = 'Pen color ' + (i + 1);
+      onClick(b, function () { setColor(i); });
+      host.appendChild(b);
+      swatches.push(b);
+    });
+  })();
+
+  function syncTools() {
+    tools.laser.classList.toggle('is-on', laserOn);
+    tools.pen.classList.toggle('is-on', penOn);
+    tools.blank.classList.toggle('is-on', blankOn);
+    tools.black.classList.toggle('is-on', blackOn);
+    tools.erase.classList.toggle('is-on', eraseOn);
+
+    elBoard.classList.toggle('is-drawing', penOn);
+    elBoard.classList.toggle('is-erasing', penOn && eraseOn);
+    elBoard.classList.toggle('is-blank', blankOn);
+
+    elPenBar.classList.toggle('is-on', penOn);
+    elPenWidth.textContent = PEN_WIDTHS[widthIdx] + 'px';
+    swatches.forEach(function (b, i) {
+      b.classList.toggle('is-on', !eraseOn && i === colorIdx);
+    });
+
+    elLaser.classList.toggle('is-on', laserOn);
+    document.body.classList.toggle('laser-on', laserOn);
+    elBlack.classList.toggle('is-on', blackOn);
+    elHelp.classList.toggle('is-on', helpOn);
+  }
+
+  // ── Laser pointer ────────────────────────────────────────────────────
+  document.addEventListener('pointermove', function (e) {
+    if (!laserOn) return;
+    elLaser.style.transform = 'translate(' + e.clientX + 'px, ' + e.clientY + 'px)';
+  }, { passive: true });
+
+  // ── Controls overlay ─────────────────────────────────────────────────
+  const HELP_GROUPS = [
+    { title: 'navigate', rows: [
+      { keys: ['→', '↓', 'Space'],        desc: 'Next slide' },
+      { keys: ['←', '↑', 'Backspace'],    desc: 'Previous slide' },
+      { keys: ['Home'],                   desc: 'First slide' },
+      { keys: ['End'],                    desc: 'Last slide' },
+      { keys: ['O'],                      desc: 'Overview grid' },
+      { keys: ['Esc'],                    desc: 'Close what is open' },
+    ]},
+    { title: 'screen', rows: [
+      { keys: ['F'],                      desc: 'Fullscreen' },
+      { keys: ['B'],                      desc: 'Black out the screen' },
+      { keys: ['?'],                      desc: 'These controls' },
+    ]},
+    { title: 'point', rows: [
+      { keys: ['L'],                      desc: 'Laser pointer' },
+    ]},
+    { title: 'draw', rows: [
+      { keys: ['D'],                      desc: 'Pen, over the slide' },
+      { keys: ['C'],                      desc: 'Blank canvas' },
+      { keys: ['1', '2', '3', '4', '5'],  desc: 'Pen color' },
+      { keys: ['E'],                      desc: 'Eraser' },
+      { keys: ['['], desc: 'Thinner' },
+      { keys: [']'], desc: 'Thicker' },
+      { keys: ['Ctrl', 'Z'],              desc: 'Undo last stroke' },
+      { keys: ['X'],                      desc: 'Clear this slide' },
+    ]},
+  ];
+
+  (function buildHelp() {
+    const grid = document.getElementById('help__grid');
+    HELP_GROUPS.forEach(function (group) {
+      const box = document.createElement('div');
+      box.className = 'help-group';
+
+      const title = document.createElement('div');
+      title.className = 'help-group__title';
+      title.textContent = group.title;
+      box.appendChild(title);
+
+      group.rows.forEach(function (row) {
+        const line = document.createElement('div');
+        line.className = 'help-row';
+
+        const desc = document.createElement('span');
+        desc.textContent = row.desc;
+
+        const keys = document.createElement('span');
+        keys.className = 'help-row__keys';
+        row.keys.forEach(function (k) {
+          const kbd = document.createElement('kbd');
+          kbd.textContent = k;
+          keys.appendChild(kbd);
+        });
+
+        line.appendChild(desc);
+        line.appendChild(keys);
+        box.appendChild(line);
+      });
+
+      grid.appendChild(box);
+    });
+  })();
+
+  function setHelp(on) {
+    helpOn = !!on;
+    syncTools();
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+    else document.exitFullscreen().catch(() => {});
+  }
+
+  // ── Tool wiring ──────────────────────────────────────────────────────
+  onClick(tools.laser, function () { setLaser(!laserOn); });
+  onClick(tools.pen,   function () { setPen(!penOn); });
+  onClick(tools.blank, function () { setBlank(!blankOn); });
+  onClick(tools.black, function () { setBlack(true); });
+  onClick(tools.erase, function () { setEraser(!eraseOn); });
+  onClick(document.getElementById('btn-thin'),  function () { nudgeWidth(-1); });
+  onClick(document.getElementById('btn-thick'), function () { nudgeWidth(1); });
+  onClick(document.getElementById('btn-clear'), function () { clearSlide(); });
+  onClick(document.getElementById('btn-help'),  function () { setHelp(!helpOn); });
+  onClick(elBlack, function () { setBlack(false); });
+
+  Array.prototype.forEach.call(elHelp.querySelectorAll('[data-close="help"]'), function (el) {
+    onClick(el, function () { setHelp(false); });
+  });
+
+  window.addEventListener('resize', sizeBoard);
+
   // ── Keyboard ─────────────────────────────────────────────────────────
   document.addEventListener('keydown', function (e) {
-    if (inOverview) {
-      if (e.key === 'Escape' || e.key === 'o' || e.key === 'O') toggleOverview(false);
+    const k = e.key;
+
+    // Undo is the only modifier combo we claim; the rest is the browser's.
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      if ((k === 'z' || k === 'Z') && hasInk()) {
+        e.preventDefault();
+        undoStroke();
+      }
       return;
     }
-    switch (e.key) {
+
+    // Each overlay swallows keys until it is dismissed, outermost first.
+    if (helpOn) {
+      if (k === 'Escape' || k === '?' || k === 'h' || k === 'H') {
+        e.preventDefault();
+        setHelp(false);
+      }
+      return;
+    }
+    if (k === '?' || k === 'h' || k === 'H') {
+      e.preventDefault();
+      setHelp(true);
+      return;
+    }
+
+    if (blackOn) {
+      // A stray key should not advance the deck behind a black screen.
+      e.preventDefault();
+      if (k === 'Escape' || k === 'b' || k === 'B' || k === ' ' || k === 'Enter') setBlack(false);
+      return;
+    }
+    if (k === 'b' || k === 'B') {
+      e.preventDefault();
+      setBlack(true);
+      return;
+    }
+
+    if (inOverview) {
+      if (k === 'Escape' || k === 'o' || k === 'O') {
+        e.preventDefault();
+        toggleOverview(false);
+      }
+      return;
+    }
+
+    // Pen sub-controls only bind while the pen is down, so the letters stay
+    // free for everything else the rest of the time.
+    if (penOn) {
+      if (k >= '1' && k <= String(PEN_COLORS.length)) { e.preventDefault(); setColor(parseInt(k, 10) - 1); return; }
+      if (k === 'e' || k === 'E') { e.preventDefault(); setEraser(!eraseOn); return; }
+      if (k === '[') { e.preventDefault(); nudgeWidth(-1); return; }
+      if (k === ']') { e.preventDefault(); nudgeWidth(1); return; }
+      if (k === 'x' || k === 'X') { e.preventDefault(); clearSlide(); return; }
+    }
+
+    switch (k) {
       case 'ArrowRight':
       case 'ArrowDown':
       case ' ':
+      case 'PageDown':
         e.preventDefault();
         next();
         break;
       case 'ArrowLeft':
       case 'ArrowUp':
       case 'Backspace':
+      case 'PageUp':
         e.preventDefault();
         prev();
         break;
@@ -968,27 +1681,51 @@ ${autoFullscreen ? `<div id="fs-hint">
         break;
       case 'f':
       case 'F':
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        } else {
-          document.exitFullscreen().catch(() => {});
-        }
+        e.preventDefault();
+        toggleFullscreen();
+        break;
+      case 'l':
+      case 'L':
+        e.preventDefault();
+        setLaser(!laserOn);
+        break;
+      case 'd':
+      case 'D':
+        e.preventDefault();
+        setPen(!penOn);
+        break;
+      case 'c':
+      case 'C':
+        e.preventDefault();
+        setBlank(!blankOn);
         break;
       case 'o':
       case 'O':
-      case 'Escape':
+        e.preventDefault();
         toggleOverview();
+        break;
+      case 'Escape':
+        e.preventDefault();
+        // Peel one layer at a time: canvas, pen, laser, then the overview.
+        if (blankOn) setBlank(false);
+        else if (penOn) setPen(false);
+        else if (laserOn) setLaser(false);
+        else toggleOverview();
         break;
     }
   });
 
   // ── Mouse/touch ───────────────────────────────────────────────────────
-  elBtnPrev.addEventListener('click', prev);
-  elBtnNext.addEventListener('click', next);
+  onClick(elBtnPrev, prev);
+  onClick(elBtnNext, next);
 
   let touchStartX = 0;
   document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
   document.addEventListener('touchend', (e) => {
+    // A stroke is not a swipe. Touch events fire alongside the pointer events
+    // the canvas draws with, so an unguarded swipe would change slides
+    // underneath every horizontal line drawn on a touchscreen.
+    if (penOn) return;
     const dx = e.changedTouches[0].clientX - touchStartX;
     if (Math.abs(dx) > 50) dx < 0 ? next() : prev();
   }, { passive: true });
@@ -1068,6 +1805,8 @@ ${autoFullscreen ? `<div id="fs-hint">
 
   // ── Init ─────────────────────────────────────────────────────────────
   slides[0].classList.add('is-active');
+  sizeBoard();
+  syncTools();
   updateHud();
 })();
 </script>

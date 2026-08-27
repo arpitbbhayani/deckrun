@@ -4,6 +4,8 @@ Write slides in Markdown, run a local server, and present in the browser. No bui
 
 Point it at a file to present it. Run it with no file and you get a Markdown editor with the live deck beside it, and every deck you write kept in your browser.
 
+While presenting you get the tools a talk actually needs: a laser pointer, a pen for drawing on the slide, a blank canvas to sketch on, a blackout key, and `?` for every control.
+
 ![Slide showing a code-heavy presentation with syntax highlighting](https://github.com/user-attachments/assets/07b0659c-f82c-44b2-8ecd-815dfd081c49)
 
 ## Installation
@@ -378,14 +380,32 @@ The theme is baked into the generated page at launch, so switching themes means 
 
 ### Keyboard shortcuts
 
-| Key                       | Action                       |
-| ------------------------- | ---------------------------- |
-| `Right`, `Down`, `Space`  | Advance to the next slide     |
-| `Left`, `Up`, `Backspace` | Return to the previous slide  |
-| `Home`                    | Jump to the first slide       |
-| `End`                     | Jump to the last slide        |
-| `O`, `Escape`             | Toggle the overview grid      |
-| `F`                       | Toggle fullscreen             |
+| Key                                  | Action                                   |
+| ------------------------------------ | ---------------------------------------- |
+| `Right`, `Down`, `Space`, `PageDown` | Advance to the next slide                 |
+| `Left`, `Up`, `Backspace`, `PageUp`  | Return to the previous slide              |
+| `Home`                               | Jump to the first slide                   |
+| `End`                                | Jump to the last slide                    |
+| `O`                                  | Toggle the overview grid                  |
+| `F`                                  | Toggle fullscreen                         |
+| `L`                                  | Toggle the laser pointer                  |
+| `D`                                  | Toggle the pen and draw on the slide      |
+| `C`                                  | Toggle a blank canvas over the slide      |
+| `B`                                  | Black out the screen                      |
+| `?`, `H`                             | Show every control                        |
+| `Escape`                             | Close whatever is open, one layer at a time |
+
+While the pen is down, these keys are live as well:
+
+| Key                        | Action                                |
+| -------------------------- | ------------------------------------- |
+| `1` … `5`                  | Pick the pen color                    |
+| `E`                        | Toggle the eraser                     |
+| `[`, `]`                   | Thinner, thicker                      |
+| `Ctrl+Z`, `Cmd+Z`          | Undo the last stroke                  |
+| `X`                        | Clear this slide's annotations         |
+
+They only bind while the pen is down, so the letters stay free for everything else the rest of the time.
 
 ### Mouse and touch
 
@@ -399,6 +419,32 @@ Press `O` or `Escape` for a grid of live thumbnails of every slide. Each thumbna
 
 Arrow keys do not move the selection inside the overview. Navigation happens by clicking.
 
+### The footer controls
+
+The bar along the bottom of a presented deck carries a button for each presenter tool, so a talk driven by a clicker or a trackpad needs no keyboard at all. `? controls` opens the same overlay `?` does: every key the deck listens for, grouped by what it does. An active tool lights up, and the pen strip with its color swatches, thickness, eraser, and clear button appears only while the pen is down.
+
+### Laser pointer
+
+Press `L` and the mouse cursor becomes a soft red dot with a glow around it, sized to be visible from the back of a room. The real cursor is hidden while it is on, so nothing competes with the dot. It works over anything: slides, the blank canvas, annotations already drawn. Press `L` again, or `Escape`, to put it away.
+
+### Drawing on slides
+
+Press `D` for a pen and draw straight onto the slide with the mouse, a trackpad, a pen tablet, or a finger.
+
+- Annotations are held per slide, so you can mark up slide 3, keep going, and come back to find it as you left it.
+- Arrow keys still navigate while the pen is down. Annotations that are merely on display do not swallow clicks, which keeps the nav arrows and footer buttons working.
+- Strokes are stored in fractions of the viewport, not pixels, so resizing the window or entering fullscreen keeps them where you drew them.
+- `Ctrl+Z` (`Cmd+Z`) removes the last stroke, `X` clears the slide, and `E` gives you an eraser that rubs out what it passes over rather than clearing everything.
+- Nothing is written to disk. Reloading the deck starts clean, and the PDF export never contains annotations.
+
+### Blank canvas
+
+Press `C` and the same canvas paints itself opaque over the slide: a blank board for the diagram you did not plan for, in the deck's own background color. The pen arms itself when it opens. `C` again, or `Escape`, brings the slide back with whatever you drew still on it, since both modes share one board per slide. Navigation still works behind it, so every slide has its own blank board.
+
+### Blacking out the screen
+
+Press `B` to drop the screen to black, for the moment when the room should be looking at you rather than the slide. While it is up, keys cannot move the deck by accident: only `B`, `Escape`, `Space`, `Enter`, or a click brings it back.
+
 ### Fullscreen
 
 Press `F` at any time to toggle fullscreen. Browsers only grant fullscreen from a user gesture, which is what `--fullscreen` works around: it shows a launch overlay that requests fullscreen on the first key or click, so the deck opens fullscreen without a manual step.
@@ -410,6 +456,7 @@ Press `F` at any time to toggle fullscreen. Browsers only grant fullscreen from 
 - A HUD at the bottom with a gradient progress bar and a current-slide counter.
 - Three pixel pets, picked at random from [vscode-pets](https://github.com/tonybaloney/vscode-pets) and scattered along the bottom edge, at least 100 pixels apart.
 - A keyboard hint that appears on load and fades after four seconds.
+- A footer tool strip for the laser pointer, pen, blank canvas, blackout, and the controls overlay.
 
 ## PDF export
 
@@ -418,7 +465,7 @@ From the editor, press `Cmd Shift S` or pick PDF from the `export` menu, and a f
 - `@page` sets the page box to 13.333in by 7.5in with no margins, so every slide is one full-bleed 16:9 page. There is no orientation to choose.
 - `print-color-adjust: exact` keeps the theme, the code block surfaces, the table fills, and background images, whether or not "Background graphics" is ticked in the dialog.
 - Slides are sized in absolute units for print. Viewport units resolve against the page box in paged media, which is why a deck laid out in `vw` and `vh` came out as clipped portrait pages.
-- The HUD, arrows, overview, cursor, pets, keyboard hint, and fullscreen prompt are all hidden.
+- The HUD, arrows, overview, cursor, pets, keyboard hint, fullscreen prompt, annotation canvas, laser pointer, blackout, and controls overlay are all hidden.
 - Speaker notes are stripped at parse time, so they never reach the PDF.
 
 Loading any deck with `?print=1` on the URL opens the print dialog once fonts and highlighting have settled. That is the editor's fallback when there is no browser to drive, and it works on a file-backed deck too:
@@ -549,7 +596,6 @@ present-md examples/example-1.md --fullscreen --no-open
 
 Worth knowing before you plan a talk around them:
 
-- No laser pointer or on-slide annotation.
 - No presenter view while presenting. The editor shows the notes for the slide you are on, but the presented deck has no second window, no next-slide peek, and no timer.
 - No live reload in file mode. Editing the file needs a restart of the CLI. The editor previews as you type, so use it for the writing loop.
 - No LaTeX or math rendering, and no Mermaid diagrams. Use fenced code blocks or ASCII diagrams.
