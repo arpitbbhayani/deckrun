@@ -84,7 +84,60 @@ function escAttr(str: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function renderSlide(slide: Slide, index: number): string {
+
+function themeVarBlock(t: ThemeVars): string {
+  return [
+    `  --crust:    ${t.crust};`,
+    `  --mantle:   ${t.mantle};`,
+    `  --base:     ${t.base};`,
+    `  --surface0: ${t.surface0};`,
+    `  --surface1: ${t.surface1};`,
+    `  --surface2: ${t.surface2};`,
+    `  --overlay0: ${t.overlay0};`,
+    `  --overlay1: ${t.overlay1};`,
+    `  --subtext0: ${t.subtext0};`,
+    `  --subtext1: ${t.subtext1};`,
+    `  --text:     ${t.text};`,
+    `  --lavender: ${t.lavender};`,
+    `  --blue:     ${t.blue};`,
+    `  --sapphire: ${t.sapphire};`,
+    `  --sky:      ${t.sky};`,
+    `  --teal:     ${t.teal};`,
+    `  --green:    ${t.green};`,
+    `  --yellow:   ${t.yellow};`,
+    `  --peach:    ${t.peach};`,
+    `  --red:      ${t.red};`,
+    `  --mauve:    ${t.mauve};`,
+    `  --pink:     ${t.pink};`,
+    `  --mauve-alpha:    ${t.mauveAlpha};`,
+    `  --surface0-alpha: ${t.surface0Alpha};`,
+    `  --crust-overlay:  ${t.crustOverlay};`,
+  ].join("\n");
+}
+
+/** Palette for a single baked-in theme. */
+export function themeRootCss(theme: ThemeName): string {
+  return `:root {\n${themeVarBlock(THEMES[theme])}\n}`;
+}
+
+/** Both palettes, switchable at runtime via [data-theme] on the root element. */
+export function themeSwitchableCss(): string {
+  return [
+    ':root, :root[data-theme="dark"] {',
+    themeVarBlock(THEMES.dark),
+    '}',
+    ':root[data-theme="light"] {',
+    themeVarBlock(THEMES.light),
+    '}',
+  ].join("\n");
+}
+
+/** Stylesheet URL for the Highlight.js theme that pairs with a palette. */
+export function hljsHref(theme: ThemeName): string {
+  return THEMES[theme].hljs;
+}
+
+export function renderSlide(slide: Slide, index: number): string {
   const bgStyle = slide.bgImage
     ? ` style="--slide-bg-url: url('${escAttr(slide.bgImage.src)}'); --slide-bg-opacity: ${slide.bgImage.opacity};"`
     : "";
@@ -121,55 +174,12 @@ function renderSlide(slide: Slide, index: number): string {
 </div>`;
 }
 
-export function generateHtml(slides: Slide[], title: string, autoFullscreen = false, theme: ThemeName = "dark"): string {
-  const t = THEMES[theme];
-  const slideHtml = slides.map((s, i) => renderSlide(s, i)).join("\n");
-  const total = slides.length;
+/** Box-model reset shared by the deck and the editor preview. */
+export const RESET_CSS = `/* ── Reset & base ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }`;
 
-  return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escAttr(title)}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="${t.hljs}">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-  <style>
-/* ── Reset & base ─────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --crust:    ${t.crust};
-  --mantle:   ${t.mantle};
-  --base:     ${t.base};
-  --surface0: ${t.surface0};
-  --surface1: ${t.surface1};
-  --surface2: ${t.surface2};
-  --overlay0: ${t.overlay0};
-  --overlay1: ${t.overlay1};
-  --subtext0: ${t.subtext0};
-  --subtext1: ${t.subtext1};
-  --text:     ${t.text};
-  --lavender: ${t.lavender};
-  --blue:     ${t.blue};
-  --sapphire: ${t.sapphire};
-  --sky:      ${t.sky};
-  --teal:     ${t.teal};
-  --green:    ${t.green};
-  --yellow:   ${t.yellow};
-  --peach:    ${t.peach};
-  --red:      ${t.red};
-  --mauve:    ${t.mauve};
-  --pink:     ${t.pink};
-  --mauve-alpha:    ${t.mauveAlpha};
-  --surface0-alpha: ${t.surface0Alpha};
-  --crust-overlay:  ${t.crustOverlay};
-}
-
-html, body {
+/** Slide rendering rules. Shared verbatim by the deck and the editor preview. */
+export const SLIDE_CSS = `html, body {
   height: 100%;
   overflow: hidden;
   background: var(--crust);
@@ -450,14 +460,62 @@ html, body {
   margin: 0.75rem auto;
 }
 
+/* ── Embeds: raw HTML iframe / video ─────────────────────────────────── */
+.slide__content iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  margin: 1rem auto;
+  border: 1px solid var(--surface1);
+  border-radius: 8px;
+  background: var(--mantle);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+.slide__content video {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  margin: 1rem auto;
+  border-radius: 8px;
+  background: var(--crust);
+  object-fit: contain;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+/* ── Inline HTML accents ──────────────────────────────────────────────── */
+.slide__content kbd {
+  display: inline-block;
+  font-family: inherit;
+  font-size: 0.82em;
+  background: var(--surface0);
+  border: 1px solid var(--surface2);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 0.1em 0.45em;
+  color: var(--lavender);
+  white-space: nowrap;
+}
+
+.slide__content mark {
+  background: var(--mauve-alpha);
+  color: var(--yellow);
+  border-bottom: 2px solid var(--yellow);
+  border-radius: 2px;
+  padding: 0.05em 0.2em;
+}
+
 /* ── Horizontal rule ──────────────────────────────────────────────────── */
 .slide__content hr {
   border: none;
   border-top: 1px solid var(--surface1);
   margin: 1.5rem 0;
-}
+}`;
 
-/* ── HUD (progress + counter) ────────────────────────────────────────── */
+/** Presentation chrome: HUD, arrows, overview, pets, cursor, print rules. */
+const CHROME_CSS = `/* ── HUD (progress + counter) ────────────────────────────────────────── */
 #hud {
   position: fixed;
   bottom: 0;
@@ -653,8 +711,23 @@ html, body {
 ::-webkit-scrollbar-thumb { background: var(--surface1); border-radius: 3px; }
 
 /* ── Print / PDF export ───────────────────────────────────────────────── */
+/* One 16:9 page per slide, edge to edge. 13.333in x 7.5in is the standard
+   widescreen slide size, so the page box needs no orientation choice. */
+@page {
+  size: 13.333in 7.5in;
+  margin: 0;
+}
+
 @media print {
+  /* Without this, printing drops every background: the theme, the code block
+     surfaces, and the background images all vanish behind white paper. */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   html, body {
+    width: 13.333in !important;
     height: auto !important;
     overflow: visible !important;
     background: var(--crust) !important;
@@ -662,7 +735,7 @@ html, body {
 
   #presentation {
     position: static !important;
-    width: 100% !important;
+    width: 13.333in !important;
     height: auto !important;
     overflow: visible !important;
   }
@@ -674,10 +747,14 @@ html, body {
     transform: none !important;
     pointer-events: all !important;
     transition: none !important;
-    width: 100vw !important;
-    height: 100vh !important;
+    /* Absolute units, not vw/vh: viewport units in paged media resolve
+       against the page box, which is not what the deck was laid out for. */
+    width: 13.333in !important;
+    height: 7.5in !important;
     page-break-after: always;
     break-after: page;
+    break-inside: avoid;
+    overflow: hidden !important;
   }
 
   .slide:last-of-type {
@@ -685,10 +762,48 @@ html, body {
     break-after: avoid;
   }
 
-  #hud, .nav-arrow, #overview, #kbd-hint, #cursor {
+  .slide__content {
+    max-height: calc(7.5in - 8rem) !important;
+  }
+
+  .slide__split {
+    height: calc(7.5in - 8rem) !important;
+  }
+
+  .slide__image-panel { max-height: calc(7.5in - 8rem) !important; }
+  .slide__image-panel img { max-height: calc(7.5in - 9rem) !important; }
+  .slide__content img { max-height: 4in !important; }
+  .slide__content iframe, .slide__content video { max-height: 4in !important; }
+
+  #hud, .nav-arrow, #overview, #kbd-hint, #cursor, #fs-hint, .pet {
     display: none !important;
   }
-}
+}`;
+
+export function generateHtml(slides: Slide[], title: string, autoFullscreen = false, theme: ThemeName = "dark"): string {
+  const t = THEMES[theme];
+  const slideHtml = slides.map((s, i) => renderSlide(s, i)).join("\n");
+  const total = slides.length;
+
+  return `<!DOCTYPE html>
+<html lang="en" data-theme="${theme}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escAttr(title)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="${t.hljs}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+${RESET_CSS}
+
+${themeRootCss(theme)}
+
+${SLIDE_CSS}
+
+${CHROME_CSS}
   </style>
 </head>
 <body>
@@ -938,6 +1053,17 @@ ${autoFullscreen ? `<div id="fs-hint">
       document.removeEventListener('keydown', fsKey);
       enterFullscreen();
     }, { once: true });
+  }
+
+  // ── Print export ─────────────────────────────────────────────────────
+  // Loading the deck with ?print=1 opens the print dialog once fonts and
+  // highlighting have settled. The editor's PDF export uses this.
+  var wantsPrint = false;
+  try { wantsPrint = new URLSearchParams(location.search).has('print'); } catch (e) {}
+  if (wantsPrint) {
+    var openPrint = function () { setTimeout(function () { window.print(); }, 350); };
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(openPrint, openPrint);
+    else window.addEventListener('load', openPrint);
   }
 
   // ── Init ─────────────────────────────────────────────────────────────

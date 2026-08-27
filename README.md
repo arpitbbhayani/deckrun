@@ -1,55 +1,209 @@
 # present-md
 
-Write slides in Markdown, run locally, and present in the browser.
+Write slides in Markdown, run a local server, and present in the browser. No build step, no export pipeline, no account.
+
+Point it at a file to present it. Run it with no file and you get a Markdown editor with the live deck beside it, and every deck you write kept in your browser.
 
 ![Slide showing a code-heavy presentation with syntax highlighting](https://github.com/user-attachments/assets/07b0659c-f82c-44b2-8ecd-815dfd081c49)
 
 ## Installation
 
-Install the package globally using npm:
+Install globally from npm:
 
 ```bash
 npm install -g present-md
 ```
 
-You can also run it directly without installation using `npx`:
+Or run it without installing:
 
 ```bash
-npx present-md slides.md
+npx present-md slides.md    # present a file
+npx present-md              # open the editor
 ```
 
 ## Usage
 
 ```bash
-# Serve on default port 7890 and open the browser
+# Write a new deck in the built-in editor
+present-md
+
+# Serve on the default port 7890 and open the browser
 present-md slides.md
 
 # Serve on a custom port
 present-md slides.md -p 3000
 
-# Start server without opening a browser tab
+# Start the server without opening a browser tab
 present-md slides.md --no-open
 
-# Prompt to enter fullscreen on first interaction
+# Show a launch overlay that enters fullscreen on the first key or click
 present-md slides.md --fullscreen
 
-# Use light theme (Catppuccin Latte)
+# Use the light theme
 present-md slides.md --theme light
 ```
+
+On start, the CLI prints the slide count and the local URL:
+
+```text
+8 slides from slides.md
+present → http://127.0.0.1:7890  (Ctrl+C to stop)
+```
+
+With no file, it starts the editor instead:
+
+```text
+editor → http://127.0.0.1:7890  (Ctrl+C to stop)
+write on the left, live deck on the right. autosaves to your browser.
+Cmd/Ctrl+K inserts anything · Cmd/Ctrl+Enter presents · Cmd/Ctrl+S downloads
+```
+
+The server binds to `127.0.0.1` only, so the deck is never exposed on the network. Stop it with `Ctrl+C`.
+
 ### CLI options
 
-| Option                | Default | Description                                          |
-| --------------------- | ------- | ---------------------------------------------------- |
-| `-p, --port <number>` | `7890`  | Port to serve the presentation on                    |
-| `--no-open`           | `false` | Start the HTTP server without opening the browser    |
-| `--fullscreen`        | `false` | Prompt to enter fullscreen on first user interaction |
-| `--theme <name>`      | `dark`  | Color theme (`dark` or `light`)                      |
-| `-v, --version`       |         | Display version number                               |
-| `-h, --help`          |         | Display help for command                             |
+| Option                | Default | Description                                            |
+| --------------------- | ------- | ------------------------------------------------------ |
+| `[file]`              |         | Markdown file to present. Omit it to open the editor.   |
+| `-p, --port <number>` | `7890`  | Port to serve the presentation on                      |
+| `--no-open`           | `false` | Start the HTTP server without opening the browser      |
+| `--fullscreen`        | `false` | Prompt to enter fullscreen on the first key or click   |
+| `--theme <name>`      | `dark`  | Color theme, either `dark` or `light`                  |
+| `-v, --version`       |         | Print the version number                               |
+| `-h, --help`          |         | Print help for the command                             |
+
+Any value other than `light` for `--theme` falls back to `dark`. In the editor, `--theme` sets the starting theme, and the toggle in the top bar switches it live.
+
+## The editor
+
+Run `present-md` with no file and it serves an editor instead of a deck: Markdown on the left, the live deck on the right, and a library of every deck you have written.
+
+```bash
+present-md
+present-md --theme light      # start the editor in the light palette
+present-md -p 3000            # editor on another port
+```
+
+The preview is not an approximation. Every keystroke is parsed by the same parser the CLI uses, and the slides render inside an iframe fixed at 1600x900 with the deck's own stylesheet. Pressing present POSTs the Markdown back to the server, which builds the deck exactly as `present-md file.md` would. The output is byte-identical.
+
+### Writing
+
+- The caret drives the preview. Move it into a slide and the preview follows.
+- The gutter labels each `---` with the slide it starts, so you can see the deck's shape while you type.
+- Markdown is syntax-highlighted in place: headings by level, bold, italic, inline code, links, image directives, fences, tables, notes, and raw HTML each get their own color.
+- Enter continues the list you are in, and continues numbering. Enter on an empty item ends the list.
+- Tab inserts two spaces.
+- `Alt Up` and `Alt Down` hop the caret between slides.
+
+### Discovering what a slide can hold
+
+Three surfaces exist so you never have to remember the syntax:
+
+- Guide drawer (`Cmd /`): every slide layout, text style, list, table, code block, image directive, and embed, grouped and explained, each with an insert button that drops it at your caret.
+- Command palette (`Cmd K`): the same catalogue, searchable, plus the actions. Type "split", "embed", or "notes" and hit enter.
+- Contextual nudges: a prompt appears in the editor when the document suggests one. A slide that overflows its own canvas, a code fence with no language tag, an image that could be a split layout, a deck with no speaker notes, a slide carrying too many bullets. Each nudge inserts the fix or dismisses for good.
+
+A tip line in the status bar cycles through the rest.
+
+### Images
+
+Images are referenced by path, exactly as in a file-based deck. The editor serves the directory you launched in, so launch `present-md` next to your diagrams and `![Diagram](diagram.png "right")` resolves.
+
+The guide and the palette carry every directive, so the layouts are one keystroke away rather than something to remember. Images are not uploaded or embedded: the editor keeps Markdown, and the files stay on disk where you put them.
+
+### The deck library
+
+Every deck you write is kept in this browser, not just the last one. The top bar shows how many there are, and `Cmd O` opens the library.
+
+- Each row shows the deck's name, slide count, size, and when you last touched it. Click one, or use the arrows and enter, to open it.
+- Decks are listed most recently edited first, so the one you want is usually at the top.
+- The open deck is saved before another one loads, so switching never costs you an edit.
+- Duplicate copies a deck into the library and opens the copy. Delete asks first and is permanent.
+- New deck leaves the current one in the library rather than clearing it.
+- Import, or a `.md` dropped onto the editor, lands the file as a new deck. Name collisions get a numeric suffix rather than overwriting.
+- Rename with the name field in the top bar. That name is also the export filename.
+
+Storage layout: an index under `presentmd.decks.v1` holds metadata only, and each deck's Markdown lives under `presentmd.deck.<id>`. Listing your decks never reads their text.
+
+### Saving
+
+The open deck autosaves to `localStorage` half a second after you stop typing, the way a local-first drawing tool does. The top bar shows the save state and the time of the last write.
+
+- Nothing is uploaded. The server is on `127.0.0.1` and only ever sees Markdown you are actively previewing.
+- Storage is scoped to the origin, which includes the port. Decks written on `:7890` are not visible on `:3000`, so stay on the default port or pass the same `-p` each time.
+- Browsers cap `localStorage` near 5 MB across all your decks. Past that the save fails loudly and tells you to download or delete, rather than quietly losing work.
+- A browser that blocks storage outright, like a private window, is detected at startup and says so instead of pretending to save.
+- Export writes a copy out of the browser. Markdown, PDF, and HTML are all in the `export` menu.
+
+### Exporting
+
+The `export` button in the top bar opens a menu with three formats. All three are named from the deck name field.
+
+| Format     | Shortcut      | Result                                                              |
+| ---------- | ------------- | ------------------------------------------------------------------- |
+| Markdown   | `Cmd S`       | A plain `.md` file, the same text you see in the editor              |
+| PDF        | `Cmd Shift S` | A real `.pdf` file, one 16:9 page per slide, styling intact           |
+| HTML       |               | One standalone `.html` page holding the whole deck                   |
+
+PDF export does not hand you a print dialog. The server drives a headless browser over the built deck and streams back the finished file, so there is nothing to configure and nothing to get wrong. Pages are 13.333in by 7.5in, the standard widescreen slide size, with no margins: the theme, code block surfaces, table fills, and background images all come through, and the HUD, arrows, cursor, pets, and speaker notes are stripped.
+
+It uses a Chromium-family browser already on your machine and installs nothing. Chrome, Chromium, Edge, and Brave are found automatically in their usual locations; `PRESENT_MD_BROWSER` (or `CHROME_PATH`) points at one somewhere else. A render takes a few seconds, and only one runs at a time.
+
+With no such browser on the machine, the editor falls back to opening the deck with the print dialog up and says so. That route now produces the same pages, because the print stylesheet sets the page box itself.
+
+The HTML export is the same page `present-md` serves: styles and the navigation runtime are inlined, so it opens from disk, and keyboard, touch, overview, and fullscreen all still work. Two things do not travel with it, since it is one file rather than a bundle:
+
+- Fonts and syntax highlighting load from a CDN, so a viewer needs a connection to see them exactly as you do.
+- Images and videos referenced by path stay on your disk. Ship them alongside, or host the page where those paths resolve.
+
+### Preview controls
+
+- Single mode scales one slide to fit the pane, with speaker notes underneath when the slide has them.
+- Grid mode (`Cmd G`) lays out the whole deck. Click any slide to jump the caret to it.
+- Drag the divider to resize the panes. Double-click it to snap back to an even split. The position is remembered.
+
+### Editor shortcuts
+
+| Keys                | Action                    |
+| ------------------- | ------------------------- |
+| `Cmd K`             | Command palette            |
+| `Cmd O`             | Deck library               |
+| `Cmd /`             | Guide drawer               |
+| `Cmd Enter`         | Present in a new tab       |
+| `Cmd S`             | Export Markdown            |
+| `Cmd Shift S`       | Export PDF                 |
+| `Cmd D`             | New slide                  |
+| `Cmd B`             | Bold                       |
+| `Cmd I`             | Italic                     |
+| `Cmd E`             | Inline code                |
+| `Cmd G`             | Toggle grid preview        |
+| `Cmd Shift L`       | Toggle light and dark      |
+| `Alt Up`, `Alt Down`| Previous and next slide    |
+| `Esc`               | Close a menu, the palette, or the guide |
+
+On Windows and Linux, `Ctrl` replaces `Cmd`.
+
+### Editor routes
+
+The editor adds a few endpoints under `/__`, all local:
+
+| Route        | Purpose                                                            |
+| ------------ | ------------------------------------------------------------------ |
+| `/__preview` | The iframe that renders slides with the deck stylesheet              |
+| `/__parse`   | POST Markdown, get back rendered slides and notes                    |
+| `/__present` | POST Markdown, get back the path to a freshly built deck              |
+| `/__pdf`     | POST Markdown, get back a rendered PDF                                |
+| `/?deck=<n>` | A built deck, kept in memory. The last eight builds are retained      |
+
+A built deck is served from `/` rather than a subpath on purpose. Served from `/__deck/1`, a slide's `![](diagram.png)` would resolve against `/__deck/` and 404.
+
+Everything else on the URL is served from the directory you launched in, so `![](./diagram.png)` and `<video src="clip.mp4">` work against local files without inlining them.
 
 ## Slide authoring
 
-Separate slides using `---` on its own line:
+### Slide separators
+
+Separate slides with `---` on a line of its own. Leading and trailing spaces or tabs on that line are allowed:
 
 ```markdown
 # First slide
@@ -67,11 +221,40 @@ Content for the next slide.
 # Conclusion
 ```
 
-The presentation extracts the first heading from the slide deck and sets it as the HTML page title. If no heading exists, it falls back to the Markdown filename.
+Empty slides are dropped, so trailing separators are harmless. A `---` on the very first line is not a separator, which means YAML frontmatter is not supported.
 
-### Formatting
+Two more things `---` does that catch people out:
 
-Write slide content using standard Markdown syntax, including headings, lists, tables, blockquotes, horizontal rules, and inline code:
+- It breaks a slide even inside a fenced code block. A `---` line in your code sample will split the deck there, so use a different separator in sample output.
+- It is the only slide break. For a horizontal rule inside a slide, write `***` or `___`.
+
+### Page title
+
+The rendered page title comes from the first heading of the first slide, with any inline markup stripped. If the first slide has no heading, the Markdown filename is used instead.
+
+### Markdown support
+
+Slides are rendered with [marked](https://github.com/markedjs/marked), so standard Markdown works: headings, paragraphs, ordered and unordered lists with nesting, tables, blockquotes, horizontal rules, links, inline code, bold, and italic.
+
+Each element is styled for projection rather than reading:
+
+| Element         | Treatment                                                          |
+| --------------- | ------------------------------------------------------------------ |
+| `h1`            | Largest, mauve, intended for section and title slides              |
+| `h2`            | Blue, the default slide title                                      |
+| `h3`            | Sky blue subheading                                                |
+| `h4`            | Teal, smallest heading                                             |
+| Bold            | Peach, for the single term that must land                          |
+| Italic          | Muted subtext, for asides                                          |
+| Inline code     | Green on a bordered surface chip                                   |
+| List markers    | Mauve bullets and numbers                                          |
+| Tables          | Lavender headers, mauve underline, zebra-striped rows              |
+| Blockquotes     | Mauve left rule on a tinted background                             |
+| Links           | Blue with an offset underline                                      |
+
+Font sizes use `clamp()` against the viewport, so the same deck reads correctly on a laptop and on a projector without changes. Content that overflows a slide is clipped rather than scrolled, which is a deliberate nudge to split the slide.
+
+An example that exercises most of the above:
 
 ```markdown
 ## System Architecture
@@ -91,7 +274,7 @@ Write slide content using standard Markdown syntax, including headings, lists, t
 
 ### Code blocks
 
-Fenced code blocks include automatic syntax highlighting via Highlight.js:
+Fenced code blocks are highlighted by Highlight.js in the browser. Tag the language so the grammar is picked correctly:
 
 ````markdown
 ```typescript
@@ -112,9 +295,32 @@ function parseSlides(markdown: string): Slide[] {
 ```
 ````
 
+Code blocks scroll horizontally when a line is too long, so long lines never reflow mid-presentation.
+
+### Embeds and inline HTML
+
+Raw HTML passes through untouched, so anything the browser can render can live on a slide.
+
+```markdown
+<iframe src="https://www.youtube.com/embed/VIDEO_ID" allowfullscreen></iframe>
+
+<video src="demo.mp4" controls muted loop></video>
+
+Press <kbd>Cmd</kbd> <kbd>K</kbd> to open the palette, and latency drops to <mark>4.1ms</mark>.
+```
+
+| Element    | Treatment                                                                    |
+| ---------- | ---------------------------------------------------------------------------- |
+| `iframe`   | Forced to full width at a 16:9 ratio, bordered and rounded                    |
+| `video`    | Centered, capped at 60% of the slide height, aspect ratio preserved            |
+| `kbd`      | Rendered as a physical key cap in lavender                                     |
+| `mark`     | Yellow underline on a tinted background                                        |
+
+Local videos are served from the folder you launched in, so `demo.mp4` next to your Markdown just works. Embeds need network access at presentation time, and they do not survive a PDF export.
+
 ### Speaker notes
 
-Add speaker notes using HTML comments containing a `notes:` directive:
+Attach notes to a slide with an HTML comment carrying a `note:` or `notes:` directive:
 
 ```markdown
 ## Deployment Strategy
@@ -124,9 +330,11 @@ Rolling deployment with zero downtime.
 <!-- notes: Review database migration rollout steps before advancing. -->
 ```
 
-### Image layout and directives
+Every such comment is stripped from the slide, so notes never leak into the projected output or the PDF export. There is no presenter window yet, so the notes are not displayed anywhere either. See [Not supported yet](#not-supported-yet).
 
-Control image placement and opacity by specifying directives in the image title attribute:
+### Image layout directives
+
+Image placement is controlled by the Markdown title attribute, the quoted string after the URL:
 
 ```markdown
 ![Architecture Diagram](diagram.png "right")
@@ -136,80 +344,127 @@ Control image placement and opacity by specifying directives in the image title 
 ![Inline Figure](figure.png)
 ```
 
-| Directive   | Description                                                                       |
-| ----------- | --------------------------------------------------------------------------------- |
-| `right`     | Split layout: content sits on the left, image fills the right panel               |
-| `left`      | Split layout: image fills the left panel, content sits on the right               |
-| `bg`        | Background layout: image covers the full slide canvas beneath the text content    |
-| `opacity:N` | Image opacity between `0.0` and `1.0` (combinable with `left`, `right`, or `bg`)  |
+| Directive   | Description                                                                    |
+| ----------- | ------------------------------------------------------------------------------ |
+| `right`     | Split layout: content on the left, image fills the right panel                  |
+| `left`      | Split layout: image fills the left panel, content on the right                  |
+| `bg`        | Background layout: image covers the slide canvas beneath the text               |
+| `opacity:N` | Opacity between `0.0` and `1.0`, combinable with `left`, `right`, or `bg`       |
 
-Inline images without directives render centered within standard document flow.
+Notes on how directives are parsed:
+
+- Matching is case-insensitive and substring-based, so reserve the title attribute for directives. A title like `"Left panel of the gateway"` is read as a `left` directive.
+- Precedence is `right`, then `left`, then `bg`, when more than one appears.
+- `opacity` accepts `opacity:0.8`, `opacity=0.8`, or `opacity 0.8`, and clamps to the `0.0` to `1.0` range.
+- One positioned image of each kind applies per slide. If two `right` images appear, the last one wins.
+- A positioned image is lifted out of the text flow, so its position in the Markdown source does not matter.
+
+Images with no directive stay inline, centered in the document flow and capped at 55% of the viewport height. Panel images are capped at 78% and keep their aspect ratio with a drop shadow.
 
 ## Themes
 
-The presentation provides two built-in themes using the Catppuccin color palette:
+Two built-in themes, both on the Catppuccin palette:
 
-- `dark` (default): Catppuccin Mocha palette with Tokyo Night Dark code syntax highlighting
-- `light`: Catppuccin Latte palette with Atom One Light code syntax highlighting
-
-Select the theme with the `--theme` flag:
+- `dark`, the default, is Catppuccin Mocha with Tokyo Night Dark code highlighting
+- `light` is Catppuccin Latte with Atom One Light code highlighting, with muted colors darkened for projector contrast
 
 ```bash
 present-md slides.md --theme light
 ```
 
-## Navigation and controls
+The theme is baked into the generated page at launch, so switching themes means restarting with a different flag. Colors are emitted as CSS custom properties on `:root`, which makes them straightforward to override if you fork the generator.
 
-Navigate presentations using keyboard shortcuts, on-screen buttons, or touchscreen gestures.
+## Navigation and controls
 
 ### Keyboard shortcuts
 
-| Key                       | Action                                     |
-| ------------------------- | ------------------------------------------ |
-| `Right`, `Down`, `Space`  | Advance to the next slide                  |
-| `Left`, `Up`, `Backspace` | Return to the previous slide               |
-| `Home`                    | Jump to the first slide                    |
-| `End`                     | Jump to the last slide                     |
-| `O`, `Escape`             | Toggle the overview grid                   |
-| `F`                       | Toggle fullscreen mode                     |
+| Key                       | Action                       |
+| ------------------------- | ---------------------------- |
+| `Right`, `Down`, `Space`  | Advance to the next slide     |
+| `Left`, `Up`, `Backspace` | Return to the previous slide  |
+| `Home`                    | Jump to the first slide       |
+| `End`                     | Jump to the last slide        |
+| `O`, `Escape`             | Toggle the overview grid      |
+| `F`                       | Toggle fullscreen             |
 
-### Mouse and touch controls
+### Mouse and touch
 
-- Click the navigation arrow buttons on either side of the screen
-- Swipe left or right on touchscreen devices to advance or return
-- Click any thumbnail in overview mode to jump directly to that slide
+- Click the arrow buttons on either side of the screen. They dim at the first and last slide.
+- Swipe horizontally on a touchscreen. A swipe longer than 50 pixels advances or goes back.
+- Click any thumbnail in the overview to jump to that slide.
 
 ### Overview mode
 
-Press `O` or `Escape` to toggle a grid overview displaying live rendered thumbnails of every slide in the deck. Selecting a thumbnail transitions to that slide.
+Press `O` or `Escape` for a grid of live thumbnails of every slide. Each thumbnail is a scaled clone of the real slide, so code highlighting, tables, and images all appear as they will on screen. The current slide is outlined in blue. Click a thumbnail to jump there with the correct transition direction, or press `O` or `Escape` to return without moving.
 
-### Fullscreen mode
+Arrow keys do not move the selection inside the overview. Navigation happens by clicking.
 
-Pass `--fullscreen` to display a launch overlay that requests fullscreen on the first keypress or click. You can also toggle fullscreen at any time during presentation with the `F` key.
+### Fullscreen
 
-## Visual elements
+Press `F` at any time to toggle fullscreen. Browsers only grant fullscreen from a user gesture, which is what `--fullscreen` works around: it shows a launch overlay that requests fullscreen on the first key or click, so the deck opens fullscreen without a manual step.
 
-- Terminal aesthetics: Monospace typography throughout using IBM Plex Mono, complemented by a blinking cursor in the top right
-- Animated slide transitions: Direction-aware sliding animations when navigating forwards or backwards
-- HUD overlay: Bottom progress bar with a gradient fill and active slide counter
-- Pixel pets: Three animated pets randomly selected from VS Code Pets appear along the bottom interface
-- Temporary key hint: A keyboard navigation reminder that displays on load and fades after 4 seconds
+## Visual design
+
+- Terminal aesthetics throughout, set in IBM Plex Mono with a blinking mauve cursor in the top right corner.
+- Direction-aware transitions. Slides slide in from the right going forward and from the left going back, over 380ms.
+- A HUD at the bottom with a gradient progress bar and a current-slide counter.
+- Three pixel pets, picked at random from [vscode-pets](https://github.com/tonybaloney/vscode-pets) and scattered along the bottom edge, at least 100 pixels apart.
+- A keyboard hint that appears on load and fades after four seconds.
 
 ## PDF export
 
-Export presentations to PDF using the print dialog in any modern browser (`Ctrl+P` or `Cmd+P`):
+From the editor, press `Cmd Shift S` or pick PDF from the `export` menu, and a finished `.pdf` downloads. From a presented deck, print it with `Ctrl+P` or `Cmd+P`. Both produce the same pages.
 
-- Dedicated `@media print` styles format each slide as a standalone landscape page
-- UI elements (HUD, navigation arrows, cursor, pixel pets, keyboard hints) are automatically hidden
-- Background colors and styling are preserved when background graphics are enabled in print settings
+- `@page` sets the page box to 13.333in by 7.5in with no margins, so every slide is one full-bleed 16:9 page. There is no orientation to choose.
+- `print-color-adjust: exact` keeps the theme, the code block surfaces, the table fills, and background images, whether or not "Background graphics" is ticked in the dialog.
+- Slides are sized in absolute units for print. Viewport units resolve against the page box in paged media, which is why a deck laid out in `vw` and `vh` came out as clipped portrait pages.
+- The HUD, arrows, overview, cursor, pets, keyboard hint, and fullscreen prompt are all hidden.
+- Speaker notes are stripped at parse time, so they never reach the PDF.
+
+Loading any deck with `?print=1` on the URL opens the print dialog once fonts and highlighting have settled. That is the editor's fallback when there is no browser to drive, and it works on a file-backed deck too:
+
+```bash
+present-md slides.md --no-open
+# then open http://127.0.0.1:7890/?print=1
+```
 
 ## Local asset server
 
-`present-md` starts a local HTTP server that serves files relative to the directory of the Markdown file. This ensures local images, diagrams, fonts, and media load reliably without browser CORS restrictions. If the specified port is unavailable, the server automatically finds an open port.
+`present-md` serves the generated HTML at `/` and everything else relative to the directory holding the Markdown file. In editor mode there is no Markdown file, so it serves the directory you launched in. Local images, diagrams, videos, and fonts load over `http://` instead of `file://`, which avoids CORS restrictions on local assets.
 
-## Complete slide template
+- Served types include HTML, CSS, JS, JSON, PNG, JPEG, GIF, SVG, WebP, AVIF, ICO, MP4, WebM, WOFF, WOFF2, and TTF. Anything else is sent as `application/octet-stream`.
+- Requests that resolve outside the Markdown file's directory return `403`. Missing files return `404`.
+- If the requested port is taken, the server falls back to a random free port and prints the URL it settled on.
 
-Below is a complete multi-slide Markdown deck illustrating common layout combinations, syntax highlighting, image directives, and speaker notes:
+Google Fonts, Highlight.js, and the pet sprites load from CDNs, so a first run needs network access. Once the browser has cached them, the deck renders offline apart from the pets.
+
+## Generating decks with Claude Code
+
+Any tool that writes Markdown can write a `present-md` deck. If you use Claude Code, the `blog-to-slides` skill turns a blog post, article, or long-form note into a deck in exactly this format: `---` separators, `## Title` per slide, language-tagged code blocks, and ASCII diagrams where a picture beats a paragraph.
+
+```text
+turn https://arpitbhayani.me/blogs/wal into slides
+```
+
+Then present the file it writes:
+
+```bash
+present-md wal-slides.md
+```
+
+Or open the editor and drop the file onto it, which is the faster loop when you still want to cut a few slides:
+
+```bash
+present-md
+```
+
+The skill is a personal Claude Code skill and is not bundled with this package. Add it under `~/.claude/skills/blog-to-slides/SKILL.md` to make it available across projects.
+
+One caveat: the skill emits LaTeX for formulas, which `present-md` does not render. Rewrite formulas as inline code or a code block, or drop them.
+
+## Complete deck template
+
+A deck exercising split layouts, background images, opacity, syntax highlighting, tables, and speaker notes:
 
 ````markdown
 # Scaling Distributed Systems
@@ -254,11 +509,11 @@ func (w *Worker) ProcessEvent(ctx context.Context, msg *kafka.Message) error {
 
 ## Performance Benchmark
 
-| Configuration | Throughput (req/s) | p99 Latency (ms) |
-| ------------- | ------------------ | ---------------- |
-| Single node   | 12,400             | 18.2             |
-| 3-node cluster| 35,100             | 6.4              |
-| 5-node cluster| 58,900             | 4.1              |
+| Configuration  | Throughput (req/s) | p99 Latency (ms) |
+| -------------- | ------------------ | ---------------- |
+| Single node    | 12,400             | 18.2             |
+| 3-node cluster | 35,100             | 6.4              |
+| 5-node cluster | 58,900             | 4.1              |
 
 ---
 
@@ -271,20 +526,68 @@ func (w *Worker) ProcessEvent(ctx context.Context, msg *kafka.Message) error {
 
 ## Examples
 
-Sample slide decks are available in the `examples/` directory:
+Two decks ship in `examples/`:
 
-- `examples/example-1.md` - Feature walkthrough covering syntax, split layouts, opacity, and shortcuts
-- `examples/example-2.md` - Complete technical presentation on databases and agentic AI
-
-Run any example directly from the repository:
+- `examples/example-1.md` is a feature walkthrough covering syntax, split layouts, opacity, and shortcuts
+- `examples/example-2.md` is a full technical talk on databases and agentic AI
 
 ```bash
 # Run the feature showcase deck
 present-md examples/example-1.md
 
-# Run the technical presentation in light theme on port 3000
+# Or open the editor and drag either file onto it to edit
+present-md
+
+# Run the technical talk in light theme on port 3000
 present-md examples/example-2.md -p 3000 --theme light
 
 # Run fullscreen without opening a browser
 present-md examples/example-1.md --fullscreen --no-open
 ```
+
+## Not supported yet
+
+Worth knowing before you plan a talk around them:
+
+- No laser pointer or on-slide annotation.
+- No presenter view while presenting. The editor shows the notes for the slide you are on, but the presented deck has no second window, no next-slide peek, and no timer.
+- No live reload in file mode. Editing the file needs a restart of the CLI. The editor previews as you type, so use it for the writing loop.
+- No LaTeX or math rendering, and no Mermaid diagrams. Use fenced code blocks or ASCII diagrams.
+- No incremental reveal of bullets within a slide.
+- No slide-level transition or layout overrides beyond the image directives.
+- No `file://` mode. The deck always runs through the local HTTP server.
+- The editor does not upload or embed images. It stores Markdown, and images load by path from the folder you launched in.
+- The library lives in one browser and one origin. It does not sync between browsers or machines, so download anything you cannot afford to lose.
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Compile TypeScript to dist/
+npm run build
+
+# Run straight from source
+npm run dev -- examples/example-1.md
+
+# Run the editor from source
+npm run dev
+```
+
+The source:
+
+- `src/index.ts` is the CLI, the HTTP server, the editor routes, and port selection
+- `src/parser.ts` splits slides, extracts notes, and resolves image directives
+- `src/generate.ts` holds the themes, the slide CSS, and the deck runtime
+- `src/preview.ts` is the editor's preview iframe, sharing the slide CSS with the deck
+- `src/editor.ts` is the editor page: highlighting, palette, guide, nudges, autosave
+- `src/editor-content.ts` is the snippet registry, tips, and welcome deck that the guide, the palette, and the nudges all read from
+
+The deck and the editor preview share `RESET_CSS`, `SLIDE_CSS`, and the palettes out of `generate.ts`, which is what keeps the preview honest. Change a slide style once and both move together.
+
+Release steps live in [PUBLISHING.md](PUBLISHING.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
