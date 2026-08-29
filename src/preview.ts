@@ -24,7 +24,7 @@ export const PREVIEW_HEIGHT = 900;
 
 /**
  * The document loaded into the editor's preview iframe. It carries the deck's
- * own stylesheet, so what the editor shows is what `present-md file.md` renders.
+ * own stylesheet, so what the editor shows is what `deckrun file.md` renders.
  * Slides arrive over postMessage; nothing is fetched or parsed in here.
  */
 export function generatePreviewHtml(

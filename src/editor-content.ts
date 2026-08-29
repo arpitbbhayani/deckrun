@@ -357,7 +357,7 @@ export const TIPS: string[] = [
 ];
 
 /** Deck loaded on a first visit. Doubles as the feature tour. */
-export const WELCOME_DECK = `# present-md
+export const WELCOME_DECK = `# deckrun
 
 ### Write slides in Markdown, present in the browser
 
@@ -418,7 +418,7 @@ An image path resolves against the folder you launched in. Add a directive to th
 ![Cover](cover.png "bg opacity:0.25")
 \`\`\`
 
-<!-- notes: Launch present-md in the folder holding your diagrams and the paths just work. -->
+<!-- notes: Launch deckrun in the folder holding your diagrams and the paths just work. -->
 
 ---
 

@@ -2444,11 +2444,22 @@ ${autoFullscreen ? `<div id="fs-hint">
   // inside the doc unless they are attached there too.
   function attachToFrame() {
     try {
+      if (elFrame.contentDocument && elFrame.contentDocument.documentElement) {
+        elFrame.contentDocument.documentElement.dataset.theme = document.documentElement.dataset.theme || '${theme}';
+      }
+    } catch (err) {}
+    try {
+      if (elFrame.contentWindow) {
+        elFrame.contentWindow.postMessage({ type: 'theme', theme: document.documentElement.dataset.theme || '${theme}' }, '*');
+      }
+    } catch (err) {}
+    try {
       elFrame.contentWindow.addEventListener('keydown', onKeydown);
       elFrame.contentWindow.addEventListener('pointermove', onPointerMove, { passive: true });
     } catch (err) {}
   }
   elFrame.addEventListener('load', attachToFrame);
+  attachToFrame();
 
   // ── Print export ─────────────────────────────────────────────────────
   // Doc-mode PDF/print targets the raw doc URL directly (no chrome, see

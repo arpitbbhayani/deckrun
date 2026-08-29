@@ -46,7 +46,7 @@ const CANDIDATES: Record<string, string[]> = {
 
 /** Env overrides, checked before the well-known locations. */
 const ENV_KEYS = [
-  "PRESENT_MD_BROWSER",
+  "DECKRUN_BROWSER",
   "CHROME_PATH",
   "PUPPETEER_EXECUTABLE_PATH",
 ];
@@ -159,7 +159,7 @@ async function waitForPdf(
  * fallback font with plain code blocks.
  */
 export async function renderPdf(url: string, browser: string): Promise<Buffer> {
-  const dir = await mkdtemp(join(tmpdir(), "present-md-pdf-"));
+  const dir = await mkdtemp(join(tmpdir(), "deckrun-pdf-"));
   const out = join(dir, "deck.pdf");
 
   const args = [

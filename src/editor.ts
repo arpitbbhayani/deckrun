@@ -44,7 +44,7 @@ function bootstrapJson(
   return JSON.stringify(payload).replace(/</g, "\\u003c");
 }
 
-/** The Markdown editor served when `present-md` is launched without a file. */
+/** The Markdown editor served when `deckrun` is launched without a file. */
 export function generateEditorHtml(
   theme: ThemeName = DEFAULT_THEME,
   sizeInput: SizeName = DEFAULT_SIZE,
@@ -57,7 +57,7 @@ export function generateEditorHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>present-md editor</title>
+  <title>deckrun editor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="${googleFontsHref()}" rel="stylesheet">
@@ -136,7 +136,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 
 @media (max-width: 1140px) {
-  #btn-open { display: none; }
+  #btn-new { display: none; }
 }
 
 @media (max-width: 1040px) {
@@ -1173,14 +1173,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 <body>
 <div id="app">
   <header id="topbar">
-    <span id="brand">present-md<span class="caret"></span></span>
+    <span id="brand">deckrun<span class="caret"></span></span>
     <input id="docname" value="deck" spellcheck="false" title="Deck name, also the download filename">
     <button class="btn" id="btn-decks" title="Switch between the decks in this browser">decks <span id="deck-count">1</span> <kbd>Cmd O</kbd></button>
     <span class="spacer"></span>
     <span id="topbar-right">
     <button class="btn" id="btn-guide" title="Everything you can put on a slide">guide <kbd>Cmd /</kbd></button>
     <button class="btn" id="btn-palette" title="Insert anything">insert <kbd>Cmd K</kbd></button>
-    <button class="btn" id="btn-open" title="Load a local .md file in as a new deck">import</button>
+    <button class="btn" id="btn-new" title="Start a new Markdown deck or HTML doc">new</button>
     <span class="menu">
       <button class="btn" id="btn-export" aria-haspopup="true" aria-expanded="false">export <span class="menu__chev">&#9662;</span></button>
       <div class="menu__pop" id="export-menu">
@@ -1353,14 +1353,18 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   <div class="backdrop"></div>
   <div id="start-box">
     <div id="start-head">
-      <span id="brand">present-md<span class="caret"></span></span>
+      <span id="brand">deckrun<span class="caret"></span></span>
       <p>What are you making?</p>
     </div>
     <div id="start-cards">
-      <button class="start-card" id="start-md">
+      <div class="start-card" id="start-md-card">
         <span class="start-card__title">Markdown deck</span>
         <span class="start-card__desc">Slides written in Markdown, presented one at a time.</span>
-      </button>
+        <span class="start-card__acts">
+          <button id="start-md-blank">start blank</button>
+          <button id="start-md-upload">upload .md</button>
+        </span>
+      </div>
       <div class="start-card" id="start-html-card">
         <span class="start-card__title">HTML document</span>
         <span class="start-card__desc">One self-contained page, presented with the laser, pen, and canvas &mdash; no slide boundaries.</span>
@@ -1393,20 +1397,54 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var CMD = MAC ? 'Cmd' : 'Ctrl';
 
   var K = {
-    index:   'presentmd.decks.v1',
-    deck:    'presentmd.deck.',
-    current: 'presentmd.current.v1',
-    theme:   'presentmd.theme.v1',
-    size:    'presentmd.size.v1',
-    head:    'presentmd.font.head.v1',
-    body:    'presentmd.font.body.v1',
-    split:   'presentmd.split.v1',
-    mode:    'presentmd.mode.v1',
-    nudge:   'presentmd.nudges.v1',
+    index:   'deckrun.decks.v1',
+    deck:    'deckrun.deck.',
+    current: 'deckrun.current.v1',
+    theme:   'deckrun.theme.v1',
+    size:    'deckrun.size.v1',
+    head:    'deckrun.font.head.v1',
+    body:    'deckrun.font.body.v1',
+    split:   'deckrun.split.v1',
+    mode:    'deckrun.mode.v1',
+    nudge:   'deckrun.nudges.v1',
     // Superseded by the deck library, read once to migrate.
     oldDoc:  'presentmd.doc.v1',
     oldName: 'presentmd.name.v1'
   };
+
+  // present-md was renamed to deckrun — the whole storage namespace moves
+  // with it, so this copies it over once rather than orphaning every deck
+  // already saved under the old prefix.
+  var OLD_NS = {
+    index: 'presentmd.decks.v1', deck: 'presentmd.deck.', current: 'presentmd.current.v1',
+    theme: 'presentmd.theme.v1', size: 'presentmd.size.v1', head: 'presentmd.font.head.v1',
+    body: 'presentmd.font.body.v1', split: 'presentmd.split.v1', mode: 'presentmd.mode.v1',
+    nudge: 'presentmd.nudges.v1'
+  };
+  (function migrateNamespace() {
+    if (lsGet(K.index, null) !== null) return;
+    var oldIndexRaw = lsGet(OLD_NS.index, null);
+    if (oldIndexRaw === null) return;
+    lsSet(K.index, oldIndexRaw);
+    lsDel(OLD_NS.index);
+    try {
+      var oldIndex = JSON.parse(oldIndexRaw);
+      if (Object.prototype.toString.call(oldIndex) === '[object Array]') {
+        oldIndex.forEach(function (entry) {
+          if (!entry || !entry.id) return;
+          var content = lsGet(OLD_NS.deck + entry.id, null);
+          if (content !== null) {
+            lsSet(K.deck + entry.id, content);
+            lsDel(OLD_NS.deck + entry.id);
+          }
+        });
+      }
+    } catch (e) {}
+    ['current', 'theme', 'size', 'head', 'body', 'split', 'mode', 'nudge'].forEach(function (slot) {
+      var v = lsGet(OLD_NS[slot], null);
+      if (v !== null) { lsSet(K[slot], v); lsDel(OLD_NS[slot]); }
+    });
+  })();
 
   function lsGet(k, fallback) {
     try { var v = localStorage.getItem(k); return v === null ? fallback : v; }
@@ -1849,7 +1887,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   // ── Parse round-trip: the server owns the Markdown, so what you see here
-  //    is byte-for-byte what present-md file.md renders. ───────────────
+  //    is byte-for-byte what deckrun file.md renders. ───────────────
   function refresh() {
     var mine = ++state.seq;
     if (state.inflight) state.inflight.abort();
@@ -2545,6 +2583,31 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     paintFontMenu();
   }
 
+  function syncHtmlFrameTheme() {
+    if (!frameHtml) return;
+    try {
+      var root = frameHtml.contentDocument && frameHtml.contentDocument.documentElement;
+      if (root) {
+        root.dataset.theme = state.theme;
+        root.dataset.decor = decorOf(state.theme);
+        root.dataset.size = state.size;
+        if (state.head) root.dataset.head = state.head; else delete root.dataset.head;
+        if (state.body) root.dataset.body = state.body; else delete root.dataset.body;
+      }
+    } catch (e) {}
+    try {
+      if (frameHtml.contentWindow) {
+        frameHtml.contentWindow.postMessage({
+          type: 'theme',
+          theme: state.theme,
+          size: state.size,
+          head: state.head,
+          body: state.body
+        }, '*');
+      }
+    } catch (e) {}
+  }
+
   /** One message for all four, since the preview applies them to one root. */
   function pushLook() {
     post({
@@ -2554,6 +2617,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       head: state.head,
       body: state.body
     });
+    syncHtmlFrameTheme();
     paintThemeButton();
   }
 
@@ -3093,7 +3157,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       .then(function () { btn.disabled = false; });
   }
 
-  $('start-md').addEventListener('click', startNewMarkdown);
+  $('start-md-blank').addEventListener('click', startNewMarkdown);
+  $('start-md-upload').addEventListener('click', function () { $('file-any').click(); });
   $('start-html-upload').addEventListener('click', function () { $('file-any').click(); });
   $('start-html-url-go').addEventListener('click', loadHtmlUrl);
   $('start-html-url').addEventListener('keydown', function (e) {
@@ -3176,6 +3241,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   srcHtml.addEventListener('input', onHtmlInput);
+  frameHtml.addEventListener('load', syncHtmlFrameTheme);
   srcHtml.addEventListener('click', renderHtmlCounts);
   srcHtml.addEventListener('keyup', function (e) {
     if (e.key.indexOf('Arrow') === 0 || e.key === 'Home' || e.key === 'End' ||
@@ -3270,7 +3336,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   $('btn-guide').addEventListener('click', function () { runAction('guide'); });
   $('btn-palette').addEventListener('click', openPalette);
-  $('btn-open').addEventListener('click', function () { runAction('open'); });
+  $('btn-new').addEventListener('click', function () { closeOverlays(); showStartScreen(); });
   // ── Dropdown menus ─────────────────────────────────────────────────────
   // Both the export and font popovers behave the same way, so one open menu is
   // tracked here rather than each growing its own copy of this.

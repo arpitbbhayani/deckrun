@@ -576,7 +576,7 @@ export function themeSummaries(): ThemeSummary[] {
   });
 }
 
-/** One line per theme, for `present-md --list-themes`. */
+/** One line per theme, for `deckrun --list-themes`. */
 export function themeListing(): string[] {
   const pad = Math.max(...THEME_IDS.map((id) => id.length));
   return THEME_IDS.map((id) => {
@@ -1079,7 +1079,7 @@ export function sizeSummaries(): Array<{
   }));
 }
 
-/** One line per size, for `present-md --list-sizes`. */
+/** One line per size, for `deckrun --list-sizes`. */
 export function sizeListing(): string[] {
   const pad = Math.max(...SIZE_IDS.map((id) => id.length));
   return SIZE_IDS.map((id) => {
@@ -1167,7 +1167,7 @@ export function fontSummaries(): FontSummary[] {
   }));
 }
 
-/** One line per face, for `present-md --list-fonts`. */
+/** One line per face, for `deckrun --list-fonts`. */
 export function fontListing(): string[] {
   const pad = Math.max(...FONT_IDS.map((id) => id.length));
   return FONT_IDS.map(

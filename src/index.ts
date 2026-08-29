@@ -250,7 +250,7 @@ async function handleEditorRoute(
     }
     const theme = resolveThemeName(body.theme);
     const size = resolveSizeName(body.size);
-    const title = deckTitle(slides, body.title?.trim() || "present-md");
+    const title = deckTitle(slides, body.title?.trim() || "deckrun");
     // A deck built for printing must not open behind a fullscreen prompt.
     const forPrint = body.print === true;
     const path = stashDeck(
@@ -287,7 +287,7 @@ async function handleEditorRoute(
         JSON.stringify({
           error: "no browser",
           detail:
-            "No Chrome, Chromium, Edge, or Brave found. Set PRESENT_MD_BROWSER to one to export PDFs directly.",
+            "No Chrome, Chromium, Edge, or Brave found. Set DECKRUN_BROWSER to one to export PDFs directly.",
         })
       );
       return true;
@@ -295,7 +295,7 @@ async function handleEditorRoute(
 
     const theme = resolveThemeName(body.theme);
     const size = resolveSizeName(body.size);
-    const title = deckTitle(slides, body.title?.trim() || "present-md");
+    const title = deckTitle(slides, body.title?.trim() || "deckrun");
     const path = stashDeck(
       generateHtml(slides, title, false, theme, size, { head: body.head, body: body.body })
     );
@@ -343,7 +343,7 @@ async function handleEditorRoute(
       upstream = await fetch(target, {
         redirect: "follow",
         signal: AbortSignal.timeout(15_000),
-        headers: { "User-Agent": "present-md" },
+        headers: { "User-Agent": "deckrun" },
       });
     } catch (err) {
       res.writeHead(502, { "Content-Type": "application/json" });
@@ -399,7 +399,7 @@ async function handleEditorRoute(
       return true;
     }
     const theme = resolveThemeName(body.theme);
-    const title = docTitle(raw, body.title?.trim() || "present-md");
+    const title = docTitle(raw, body.title?.trim() || "deckrun");
     const forPrint = body.print === true;
     const docPath = stashDeck(raw);
     const wrapperPath = stashDeck(
@@ -428,13 +428,13 @@ async function handleEditorRoute(
         JSON.stringify({
           error: "no browser",
           detail:
-            "No Chrome, Chromium, Edge, or Brave found. Set PRESENT_MD_BROWSER to one to export PDFs directly.",
+            "No Chrome, Chromium, Edge, or Brave found. Set DECKRUN_BROWSER to one to export PDFs directly.",
         })
       );
       return true;
     }
 
-    const title = docTitle(raw, body.title?.trim() || "present-md");
+    const title = docTitle(raw, body.title?.trim() || "deckrun");
     // Print the raw doc directly, with no chrome wrapper: its own @page /
     // print CSS (or Chrome's defaults) governs pagination, and there is no
     // presenter chrome to strip since there is none in the printed page.
@@ -517,7 +517,7 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
 const program = new Command();
 
 program
-  .name("present-md")
+  .name("deckrun")
   .description(
     "Present a Markdown file in the browser. Run without a file to write one in the built-in editor."
   )
@@ -565,14 +565,14 @@ program
       const named = findTheme(opts.theme);
       if (!named) {
         console.error(
-          `present-md: unknown theme '${opts.theme}'. Run --list-themes to see them all.`
+          `deckrun: unknown theme '${opts.theme}'. Run --list-themes to see them all.`
         );
         process.exit(1);
       }
       const sized = findSize(opts.size);
       if (!sized) {
         console.error(
-          `present-md: unknown size '${opts.size}'. Run --list-sizes to see them all.`
+          `deckrun: unknown size '${opts.size}'. Run --list-sizes to see them all.`
         );
         process.exit(1);
       }
@@ -587,7 +587,7 @@ program
         const face = findFont(raw);
         if (!face) {
           console.error(
-            `present-md: unknown font '${raw}' for ${flag}. Run --list-fonts to see them all.`
+            `deckrun: unknown font '${raw}' for ${flag}. Run --list-fonts to see them all.`
           );
           process.exit(1);
         }
@@ -611,13 +611,13 @@ program
           try {
             rawHtml = readFileSync(absPath, "utf-8");
           } catch {
-            console.error(`present-md: cannot read file '${file}'`);
+            console.error(`deckrun: cannot read file '${file}'`);
             process.exit(1);
           }
 
           if (opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont) {
             console.error(
-              `${c.dim}present-md: --size, --head-font, and --body-font only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
+              `${c.dim}deckrun: --size, --head-font, and --body-font only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
             );
           }
 
@@ -633,13 +633,13 @@ program
           try {
             markdown = readFileSync(absPath, "utf-8");
           } catch {
-            console.error(`present-md: cannot read file '${file}'`);
+            console.error(`deckrun: cannot read file '${file}'`);
             process.exit(1);
           }
 
           const slides = parseSlides(markdown);
           if (slides.length === 0) {
-            console.error("present-md: no slides found in the file.");
+            console.error("deckrun: no slides found in the file.");
             process.exit(1);
           }
 

@@ -1,12 +1,13 @@
-# present-md
+# deckrun
 
-Write slides in Markdown, run a local server, and present in the browser. No build step, no export pipeline, no account.
+Write slides in Markdown or bring a self-contained HTML document, run a local server, and present either in the browser.
 
-Point it at a file to present it. Run it with no file and you get a Markdown editor with the live deck beside it, and every deck you write kept in your browser.
-
-Fourteen themes come built in, each with its own palette, its own type, and its own animated geometry behind the slides, and each can be set at four type sizes. Adding a fifteenth theme is one object literal.
-
-While presenting you get the tools a talk actually needs: a laser pointer, a pen for drawing on the slide, a blank canvas to sketch on, a blackout key, and `?` for every control.
+- **Two formats** - Markdown decks with slide-by-slide presentation, or self-contained HTML documents with continuous scrolling
+- **Live editor** - edit alongside a live preview, with autosave and a library of all your decks and docs
+- **14 themes** - unique palettes, typography, animated backdrops, four type sizes, and customizable heading and body fonts
+- **Presenter tools** - laser pointer, drawing pen, blank canvas, blackout mode, and `?` for shortcuts
+- **Export** - Markdown, HTML, headless-rendered PDF, or a standalone presenter-ready HTML page
+- **Local-first** - binds only to `127.0.0.1`; nothing is uploaded, and your work stays in browser local storage until export
 
 ![Slide showing a code-heavy presentation with syntax highlighting](https://github.com/user-attachments/assets/07b0659c-f82c-44b2-8ecd-815dfd081c49)
 
@@ -15,47 +16,47 @@ While presenting you get the tools a talk actually needs: a laser pointer, a pen
 Install globally from npm:
 
 ```bash
-npm install -g present-md
+npm install -g deckrun
 ```
 
 Or run it without installing:
 
 ```bash
-npx present-md slides.md    # present a file
-npx present-md              # open the editor
+npx deckrun              # open the editor
+npx deckrun slides.md    # present a file
 ```
 
 ## Usage
 
 ```bash
 # Write a new deck in the built-in editor
-present-md
+deckrun
 
 # Serve on the default port 7890 and open the browser
-present-md slides.md
+deckrun slides.md
 
 # Present a self-contained HTML page instead of a Markdown deck
-present-md page.html
+deckrun page.html
 
 # Serve on a custom port
-present-md slides.md -p 3000
+deckrun slides.md -p 3000
 
 # Start the server without opening a browser tab
-present-md slides.md --no-open
+deckrun slides.md --no-open
 
 # Show a launch overlay that enters fullscreen on the first key or click
-present-md slides.md --fullscreen
+deckrun slides.md --fullscreen
 
 # Pick one of the fourteen themes, at one of four type sizes
-present-md slides.md --theme paper
-present-md slides.md --theme paper --size xl
+deckrun slides.md --theme paper
+deckrun slides.md --theme paper --size xl
 
 # Or set the two faces yourself
-present-md slides.md --theme tokyo --head-font playfair --body-font lora
+deckrun slides.md --theme tokyo --head-font playfair --body-font lora
 
-present-md --list-themes
-present-md --list-sizes
-present-md --list-fonts
+deckrun --list-themes
+deckrun --list-sizes
+deckrun --list-fonts
 ```
 
 On start, the CLI prints the slide count and the local URL:
@@ -70,7 +71,7 @@ With no file, it starts the editor instead:
 ```text
 editor → http://127.0.0.1:7890  (Ctrl+C to stop)
 write on the left, live deck on the right. autosaves to your browser.
-Cmd/Ctrl+K inserts anything · Cmd/Ctrl+Enter presents · Cmd/Ctrl+S downloads
+Cmd/Ctrl+K inserts anything · Cmd/Ctrl+Shift+L switches theme · Cmd/Ctrl+Enter presents
 ```
 
 The server binds to `127.0.0.1` only, so the deck is never exposed on the network. Stop it with `Ctrl+C`.
@@ -99,22 +100,22 @@ An unknown `--theme`, `--size`, or font is an error rather than a silent fallbac
 
 ## The editor
 
-Run `present-md` with no file and it serves an editor instead of a deck. A deck already in this browser resumes with no extra step, exactly as before. The first time you run it — or any time you choose "new" from the library with nothing open yet — you land on a start screen instead: a new Markdown deck, a new or uploaded HTML doc, or the library. Pick Markdown and you get the usual pane pair, Markdown on the left and the live deck on the right, plus a library of every deck and doc you have written.
+Run `deckrun` with no file and it serves an editor instead of a deck. A deck already in this browser resumes with no extra step, exactly as before. The first time you run it — or any time you choose "new" from the library with nothing open yet — you land on a start screen instead: a new Markdown deck, a new or uploaded HTML doc, or the library. Pick Markdown and you get the usual pane pair, Markdown on the left and the live deck on the right, plus a library of every deck and doc you have written.
 
 ```bash
-present-md
-present-md --theme paper --size l   # start the editor in a given look
-present-md --head-font syne         # and a face of your own
-present-md -p 3000            # editor on another port
+deckrun
+deckrun --theme paper --size l   # start the editor in a given look
+deckrun --head-font syne         # and a face of your own
+deckrun -p 3000            # editor on another port
 ```
 
-The preview is not an approximation. Every keystroke is parsed by the same parser the CLI uses, and the slides render inside an iframe fixed at 1600x900 with the deck's own stylesheet. Pressing present POSTs the Markdown back to the server, which builds the deck exactly as `present-md file.md` would. The output is byte-identical.
+The preview is not an approximation. Every keystroke is parsed by the same parser the CLI uses, and the slides render inside an iframe fixed at 1600x900 with the deck's own stylesheet. Pressing present POSTs the Markdown back to the server, which builds the deck exactly as `deckrun file.md` would. The output is byte-identical.
 
 ### The two bars
 
 The top bar is for decisions: the deck name, the library, and then everything
 that changes what the deck looks like — `theme`, `font`, and the `S M L XL`
-type size — with `guide`, `insert`, `import`, `export`, and `present` beside
+type size — with `guide`, `insert`, `new`, `export`, and `present` beside
 them.
 
 The bottom bar is for counts and status: caret position, word count, slide
@@ -123,8 +124,12 @@ tells you where you are belongs in a bar you reach for to act.
 
 The top bar wraps rather than scrolls when a window is narrow, since a
 scrollable bar would clip the menus that hang out of it. Before it wraps it
-sheds the keyboard hints, then `import` and `guide`, both of which the command
+sheds the keyboard hints, then `new` and `guide`, both of which the command
 palette also carries.
+
+`new` reopens the same start screen shown on a first run — pick Markdown or
+HTML from there to bring another deck or doc into the library without losing
+the one you have open.
 
 ### Writing
 
@@ -147,21 +152,21 @@ A tip line in the status bar cycles through the rest.
 
 ### Images
 
-Images are referenced by path, exactly as in a file-based deck. The editor serves the directory you launched in, so launch `present-md` next to your diagrams and `![Diagram](diagram.png "right")` resolves.
+Images are referenced by path, exactly as in a file-based deck. The editor serves the directory you launched in, so launch `deckrun` next to your diagrams and `![Diagram](diagram.png "right")` resolves.
 
 The guide and the palette carry every directive, so the layouts are one keystroke away rather than something to remember. Images are not uploaded or embedded: the editor keeps Markdown, and the files stay on disk where you put them.
 
 ### HTML documents
 
-Alongside Markdown decks, present-md can present a second kind of document: a self-contained HTML page with no slide boundaries — a single continuous doc, not a series of slides. There is no blank-slate option: get one into the editor from the start screen by uploading a `.html` file or pointing it at a public HTML URL (fetched server-side, so the page's own CORS policy does not matter), by dropping a `.html` file onto the editor, or on the CLI with `present-md page.html`.
+Alongside Markdown decks, deckrun can present a second kind of document: a self-contained HTML page with no slide boundaries — a single continuous doc, not a series of slides. There is no blank-slate option: get one into the editor from the start screen by uploading a `.html` file or pointing it at a public HTML URL (fetched server-side, so the page's own CORS policy does not matter), by dropping a `.html` file onto the editor, or on the CLI with `deckrun page.html`.
 
 Editing is a plain source pane on the left and a live preview on the right — no syntax highlighting, gutter, guide drawer, or command palette, since there are no slide-authoring directives to catalogue. The preview updates from the textarea directly, with no server round trip.
 
 Presenting wraps the doc in an iframe and layers the tool belt that still makes sense with no slides — laser pointer, pen, blank canvas, blackout, fullscreen, and `?` for controls — on top of it. There is no HUD, slide counter, overview grid, or arrow-key navigation, since there is nothing to count or step through.
 
-A doc authored in the browser editor is expected to be self-contained: inline styles and scripts, and assets from a CDN or a `data:` URI rather than a relative local path, since editor-mode present and PDF serve it from an in-memory copy, not from a folder on disk. A file passed on the CLI does not have that restriction — `present-md page.html` serves it from the file's own directory, exactly like a Markdown deck's images, so `<img src="diagram.png">` next to `page.html` resolves normally.
+A doc authored in the browser editor is expected to be self-contained: inline styles and scripts, and assets from a CDN or a `data:` URI rather than a relative local path, since editor-mode present and PDF serve it from an in-memory copy, not from a folder on disk. A file passed on the CLI does not have that restriction — `deckrun page.html` serves it from the file's own directory, exactly like a Markdown deck's images, so `<img src="diagram.png">` next to `page.html` resolves normally.
 
-If a doc runs its own script that listens for keyboard input — an embedded framework, a game, a chart with its own shortcuts — it may end up racing present-md's own listener for a key, since both are attached to the same page. Presenter shortcuts are best-effort in that case, not guaranteed to win.
+If a doc runs its own script that listens for keyboard input — an embedded framework, a game, a chart with its own shortcuts — it may end up racing deckrun's own listener for a key, since both are attached to the same page. Presenter shortcuts are best-effort in that case, not guaranteed to win.
 
 ### The deck library
 
@@ -171,11 +176,11 @@ Every deck or doc you write is kept in this browser, not just the last one. The 
 - Decks are listed most recently edited first, so the one you want is usually at the top.
 - The open deck is saved before another one loads, so switching never costs you an edit.
 - Duplicate copies an entry into the library and opens the copy. Delete asks first and is permanent.
-- New, from the library, opens the start screen rather than immediately clearing the pane — pick Markdown or HTML there.
-- Import, or a `.md`/`.html` file dropped onto the editor, lands the file as a new entry of the matching kind. Name collisions get a numeric suffix rather than overwriting.
+- `new`, in the top bar or from the library, opens the start screen rather than immediately clearing the pane — pick Markdown or HTML there, blank or uploaded, or an HTML doc by URL.
+- Uploading a file from the start screen, or dropping a `.md`/`.html` file onto the editor, lands it as a new entry of the matching kind. Name collisions get a numeric suffix rather than overwriting.
 - Rename with the name field in the top bar. That name is also the export filename.
 
-Storage layout: an index under `presentmd.decks.v1` holds metadata only, and each entry's content lives under `presentmd.deck.<id>`. Listing your library never reads that text.
+Storage layout: an index under `deckrun.decks.v1` holds metadata only, and each entry's content lives under `deckrun.deck.<id>`. Listing your library never reads that text.
 
 ### Saving
 
@@ -199,11 +204,11 @@ The `export` button in the top bar opens a menu with three formats. All three ar
 
 PDF export does not hand you a print dialog. The server drives a headless browser over the built deck and streams back the finished file, so there is nothing to configure and nothing to get wrong. Pages are 13.333in by 7.5in, the standard widescreen slide size, with no margins: the theme, its backdrop geometry, code block surfaces, table fills, and background images all come through, and the HUD, arrows, cursor, pets, and speaker notes are stripped.
 
-It uses a Chromium-family browser already on your machine and installs nothing. Chrome, Chromium, Edge, and Brave are found automatically in their usual locations; `PRESENT_MD_BROWSER` (or `CHROME_PATH`) points at one somewhere else. A render takes a few seconds, and only one runs at a time.
+It uses a Chromium-family browser already on your machine and installs nothing. Chrome, Chromium, Edge, and Brave are found automatically in their usual locations; `DECKRUN_BROWSER`, `CHROME_PATH`, or `PUPPETEER_EXECUTABLE_PATH` points at one somewhere else, checked in that order. A render takes a few seconds, and only one runs at a time.
 
 With no such browser on the machine, the editor falls back to opening the deck with the print dialog up and says so. That route now produces the same pages, because the print stylesheet sets the page box itself.
 
-The HTML export is the same page `present-md` serves: styles and the navigation runtime are inlined, so it opens from disk, and keyboard, touch, overview, and fullscreen all still work. Two things do not travel with it, since it is one file rather than a bundle:
+The HTML export is the same page `deckrun` serves: styles and the navigation runtime are inlined, so it opens from disk, and keyboard, touch, overview, and fullscreen all still work. Two things do not travel with it, since it is one file rather than a bundle:
 
 - Fonts and syntax highlighting load from a CDN, so a viewer needs a connection to see them exactly as you do. The theme's colors and its backdrop are inline, so those hold up offline.
 - Images and videos referenced by path stay on your disk. Ship them alongside, or host the page where those paths resolve.
@@ -444,8 +449,8 @@ grammar colors, and its own animated geometry behind the slides.
 | `swiss`      | light | Black on white, one red. Heavy grotesk, tight tracking, hard grid    |
 
 ```bash
-present-md slides.md --theme paper
-present-md --list-themes
+deckrun slides.md --theme paper
+deckrun --list-themes
 ```
 
 `dark` and `light` are kept as aliases for `midnight` and `daylight`, so older
@@ -484,8 +489,8 @@ multiplying into fifty-six presets:
 | `xl` | x-large | Readable from the back row. Expect three or four lines a slide.  |
 
 ```bash
-present-md slides.md --size xl
-present-md --list-sizes
+deckrun slides.md --size xl
+deckrun --list-sizes
 ```
 
 The scale is not one multiplier over everything. Headings and prose pull in
@@ -520,9 +525,9 @@ and they are chosen **separately** — a serif heading over a sans body, or the
 reverse, is a setting rather than a fork:
 
 ```bash
-present-md slides.md --theme tokyo --head-font playfair --body-font lora
-present-md slides.md --body-font newsreader     # heading stays the theme's
-present-md --list-fonts
+deckrun slides.md --theme tokyo --head-font playfair --body-font lora
+deckrun slides.md --body-font newsreader     # heading stays the theme's
+deckrun --list-fonts
 ```
 
 Twenty faces, grouped sans, serif, and mono: `inter`, `spaceGrotesk`, `sora`,
@@ -698,13 +703,13 @@ From the editor, press `Cmd Shift S` or pick PDF from the `export` menu, and a f
 Loading any deck with `?print=1` on the URL opens the print dialog once fonts and highlighting have settled. That is the editor's fallback when there is no browser to drive, and it works on a file-backed deck too:
 
 ```bash
-present-md slides.md --no-open
+deckrun slides.md --no-open
 # then open http://127.0.0.1:7890/?print=1
 ```
 
 ## Local asset server
 
-`present-md` serves the generated HTML at `/` and everything else relative to the directory holding the Markdown file. In editor mode there is no Markdown file, so it serves the directory you launched in. Local images, diagrams, videos, and fonts load over `http://` instead of `file://`, which avoids CORS restrictions on local assets.
+`deckrun` serves the generated HTML at `/` and everything else relative to the directory holding the Markdown file. In editor mode there is no Markdown file, so it serves the directory you launched in. Local images, diagrams, videos, and fonts load over `http://` instead of `file://`, which avoids CORS restrictions on local assets.
 
 - Served types include HTML, CSS, JS, JSON, PNG, JPEG, GIF, SVG, WebP, AVIF, ICO, MP4, WebM, WOFF, WOFF2, and TTF. Anything else is sent as `application/octet-stream`.
 - Requests that resolve outside the Markdown file's directory return `403`. Missing files return `404`.
@@ -712,9 +717,11 @@ present-md slides.md --no-open
 
 Google Fonts, Highlight.js, and the pet sprites load from CDNs, so a first run needs network access. Once the browser has cached them, the deck renders offline apart from the pets.
 
-## Generating decks with Claude Code
+## Generating decks and docs with Claude Code
 
-Any tool that writes Markdown can write a `present-md` deck. If you use Claude Code, the `blog-to-slides` skill turns a blog post, article, or long-form note into a deck in exactly this format: `---` separators, `## Title` per slide, language-tagged code blocks, and ASCII diagrams where a picture beats a paragraph.
+### Markdown decks
+
+Any tool that writes Markdown can write a `deckrun` deck. If you use Claude Code, the `blog-to-slides` skill turns a blog post, article, or long-form note into a deck in exactly this format: `---` separators, `## Title` per slide, language-tagged code blocks, and ASCII diagrams where a picture beats a paragraph.
 
 ```text
 turn https://arpitbhayani.me/blogs/wal into slides
@@ -723,18 +730,34 @@ turn https://arpitbhayani.me/blogs/wal into slides
 Then present the file it writes:
 
 ```bash
-present-md wal-slides.md
+deckrun wal-slides.md
 ```
 
 Or open the editor and drop the file onto it, which is the faster loop when you still want to cut a few slides:
 
 ```bash
-present-md
+deckrun
 ```
 
 The skill is a personal Claude Code skill and is not bundled with this package. Add it under `~/.claude/skills/blog-to-slides/SKILL.md` to make it available across projects.
 
-One caveat: the skill emits LaTeX for formulas, which `present-md` does not render. Rewrite formulas as inline code or a code block, or drop them.
+One caveat: the skill emits LaTeX for formulas, which `deckrun` does not render. Rewrite formulas as inline code or a code block, or drop them.
+
+### HTML documents
+
+For a self-contained HTML doc instead of a Markdown deck, use the [`ape-present`](https://github.com/arpitbbhayani/ape-skills) skill. It turns a blog post into a single presentation-worthy HTML page — a readable long-form document with animated diagrams and just enough text to carry the idea — which is exactly the kind of doc `deckrun`'s presenter mode is built for.
+
+```text
+ape present https://arpitbhayani.me/blogs/wal
+```
+
+Then present the page it writes:
+
+```bash
+deckrun wal.html
+```
+
+Like `blog-to-slides`, this is a personal Claude Code skill from the same [ape-skills](https://github.com/arpitbbhayani/ape-skills) collection and is not bundled with this package.
 
 ## Complete deck template
 
@@ -807,16 +830,16 @@ Two decks ship in `examples/`:
 
 ```bash
 # Run the feature showcase deck
-present-md examples/example-1.md
+deckrun examples/example-1.md
 
 # Or open the editor and drag either file onto it to edit
-present-md
+deckrun
 
 # Run the technical talk in light theme on port 3000
-present-md examples/example-2.md -p 3000 --theme solarized --size l
+deckrun examples/example-2.md -p 3000 --theme solarized --size l
 
 # Run fullscreen without opening a browser
-present-md examples/example-1.md --fullscreen --no-open
+deckrun examples/example-1.md --fullscreen --no-open
 ```
 
 ## Not supported yet

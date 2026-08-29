@@ -1,10 +1,10 @@
 {
-  "name": "present-md",
+  "name": "deckrun",
   "version": "1.2.0",
-  "description": "Browser-based markdown presentations for developers",
+  "description": "A local-first presentation tool for writing, editing, presenting, and exporting Markdown slides or self-contained HTML docs.",
   "type": "module",
   "bin": {
-    "present-md": "./dist/index.js"
+    "deckrun": "./dist/index.js"
   },
   "files": [
     "dist/"

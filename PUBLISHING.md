@@ -1,6 +1,6 @@
 # Publishing to npm
 
-This package is published as `present-md` on npm.
+This package is published as `deckrun` on npm.
 
 ## Pre-publish checklist
 
@@ -42,7 +42,7 @@ npm publish --access public
 ## Verifying the release
 
 ```bash
-npm info present-md
+npm info deckrun
 ```
 
 Check that the `version` field and `dist-tags.latest` match what you just published.
@@ -50,7 +50,7 @@ Check that the `version` field and `dist-tags.latest` match what you just publis
 ## Running without installation
 
 ```bash
-npx present-md slides.md
+npx deckrun slides.md
 ```
 
 `npx` downloads and runs the package on the fly — no global install needed.
@@ -58,5 +58,5 @@ npx present-md slides.md
 ## Installing the published package
 
 ```bash
-npm install -g present-md
+npm install -g deckrun
 ```
