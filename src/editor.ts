@@ -57,7 +57,7 @@ export function generateEditorHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>deckrun editor</title>
+  <title>deckrun · editor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="${googleFontsHref()}" rel="stylesheet">
@@ -1516,6 +1516,19 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     return days + 'd ago';
   }
 
+  function updateDocTitle() {
+    if ($('screen-start') && $('screen-start').classList.contains('is-on')) {
+      document.title = 'deckrun \u00b7 start';
+      return;
+    }
+    if ($('library') && $('library').classList.contains('is-on')) {
+      document.title = 'deckrun \u00b7 library';
+      return;
+    }
+    var name = ($('docname').value || '').trim();
+    document.title = name ? name + ' \u00b7 deckrun' : 'deckrun \u00b7 editor';
+  }
+
   /** One deck's metadata is refreshed from the editor on every save. */
   function touchCurrent() {
     var list = loadIndex();
@@ -1534,6 +1547,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         break;
       }
     }
+    updateDocTitle();
     return saveIndex(list);
   }
 
@@ -2358,6 +2372,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     guide.classList.remove('is-on');
     $('library').classList.remove('is-on');
     if ($('themes').classList.contains('is-on')) closeThemes(true);
+    updateDocTitle();
     if (!keepFocus) src.focus();
   }
 
@@ -2829,7 +2844,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         // Hovering previews too, so the mouse gets the same instant feedback
         // as the arrow keys.
         card.addEventListener('mouseenter', function () { selectTheme(themeCards.indexOf(card)); });
-        card.addEventListener('click', function () { commitTheme(); });
+        card.addEventListener('click', function () { selectTheme(themeCards.indexOf(card)); commitTheme(); });
         grid.appendChild(card);
         themeCards.push(card);
       });
@@ -2904,6 +2919,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     lsSet(K.current, id);
     setDocKind(meta.kind || 'markdown');
     $('docname').value = meta.name;
+    updateDocTitle();
     updateDeckCount();
     elSave.className = '';
     elSave.textContent = '';
@@ -3057,6 +3073,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     for (var i = 0; i < list.length; i++) if (list[i].id === state.deckId) libSel = i;
     renderLibrary();
     $('library').classList.add('is-on');
+    updateDocTitle();
   }
 
   $('lib-new').addEventListener('click', function () { closeOverlays(); showStartScreen(); });
@@ -3069,10 +3086,12 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   function showStartScreen() {
     $('start-lib').classList.toggle('is-disabled', !loadIndex().length);
     $('screen-start').classList.add('is-on');
+    updateDocTitle();
   }
 
   function hideStartScreenSilently() {
     $('screen-start').classList.remove('is-on');
+    updateDocTitle();
   }
 
   /** Escape/backdrop close. With nothing open yet, that would be a dead end,
@@ -3119,7 +3138,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     openLibrary();
   }
 
-  /** Fetches a public HTML page server-side (sidesteps CORS) and opens it as a new HTML doc. */
+  /** Fetches a public URL server-side (sidesteps CORS) and opens it as a new Markdown deck or HTML doc. */
   function loadHtmlUrl() {
     var input = $('start-html-url');
     var raw = input.value.trim();
@@ -3146,12 +3165,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       .then(function (body) {
         saveNow();
         var name = uniqueName(body.title || url.hostname);
-        var id = createDeck(name, body.html, 'html');
+        var kind = body.kind || (body.markdown ? 'markdown' : 'html');
+        var content = kind === 'markdown' ? (body.markdown || body.content || '') : (body.html || body.content || '');
+        var id = createDeck(name, content, kind);
         if (!id) { noRoom(); return; }
         input.value = '';
         hideStartScreenSilently();
         openDeck(id);
-        toast('Loaded ' + url.hostname + ' as a new HTML doc');
+        toast('Loaded ' + (kind === 'markdown' ? 'Markdown deck' : 'HTML doc') + ' from ' + url.hostname);
       })
       .catch(function (err) { toast('Could not load URL: ' + err.message, 'err'); })
       .then(function () { btn.disabled = false; });
@@ -3332,7 +3353,10 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     e.target.value = '';
   });
 
-  $('docname').addEventListener('input', scheduleSave);
+  $('docname').addEventListener('input', function () {
+    updateDocTitle();
+    scheduleSave();
+  });
 
   $('btn-guide').addEventListener('click', function () { runAction('guide'); });
   $('btn-palette').addEventListener('click', openPalette);

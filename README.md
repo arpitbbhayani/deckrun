@@ -11,6 +11,14 @@ Write slides in Markdown or bring a self-contained HTML document, run a local se
 
 ![Slide showing a code-heavy presentation with syntax highlighting](https://github.com/user-attachments/assets/07b0659c-f82c-44b2-8ecd-815dfd081c49)
 
+## Quick start
+
+Check out the sample Markdown source in [`examples/example-2.md`](https://raw.githubusercontent.com/arpitbbhayani/deckrun/refs/heads/master/examples/example-2.md) and load it directly to see how `deckrun` presents it (no installation required):
+
+```bash
+npx deckrun
+```
+
 ## Installation
 
 Install globally from npm:
@@ -23,7 +31,8 @@ Or run it without installing:
 
 ```bash
 npx deckrun              # open the editor
-npx deckrun slides.md    # present a file
+npx deckrun slides.md    # present a local file
+npx deckrun <url>        # present a public Markdown or HTML URL
 ```
 
 ## Usage
@@ -66,7 +75,7 @@ On start, the CLI prints the slide count and the local URL:
 present → http://127.0.0.1:7890  (Ctrl+C to stop)
 ```
 
-With no file, it starts the editor instead:
+With no file or URL, it starts the editor instead:
 
 ```text
 editor → http://127.0.0.1:7890  (Ctrl+C to stop)
@@ -80,11 +89,11 @@ The server binds to `127.0.0.1` only, so the deck is never exposed on the networ
 
 | Option                | Default | Description                                            |
 | --------------------- | ------- | ------------------------------------------------------ |
-| `[file]`              |         | Markdown or HTML file to present. Omit it to open the editor. |
+| `[file]`              |         | Markdown file, HTML file, or public URL to present. Omit it to open the editor. |
 | `-p, --port <number>` | `7890`  | Port to serve the presentation on                      |
 | `--no-open`           | `false` | Start the HTTP server without opening the browser      |
 | `--fullscreen`        | `false` | Prompt to enter fullscreen on the first key or click   |
-| `--theme <name>`      | `midnight` | Any of the fourteen themes, by id                   |
+| `--theme <name>`      | `nord`     | Any of the fourteen themes, by id                   |
 | `--size <name>`       | `m`     | Type size: `s`, `m`, `l`, or `xl`                       |
 | `--head-font <name>`  |         | Override the theme's heading and title face             |
 | `--body-font <name>`  |         | Override the theme's body face                          |

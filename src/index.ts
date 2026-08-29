@@ -163,6 +163,7 @@ function sendJson(res: ServerResponse, payload: unknown): void {
 interface DeckMode {
   kind: "deck";
   html: string;
+  remoteDoc?: string;
 }
 
 interface EditorMode {
@@ -364,8 +365,8 @@ async function handleEditorRoute(
       return true;
     }
 
-    const html = await upstream.text();
-    if (html.length > MAX_BODY) {
+    const rawContent = await upstream.text();
+    if (rawContent.length > MAX_BODY) {
       res.writeHead(413, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
@@ -375,13 +376,51 @@ async function handleEditorRoute(
       );
       return true;
     }
-    if (!html.trim()) {
+    if (!rawContent.trim()) {
       res.writeHead(422, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "empty document" }));
       return true;
     }
 
-    sendJson(res, { html, title: docTitle(html, target.hostname) });
+    const contentType = (upstream.headers.get("content-type") ?? "").toLowerCase();
+    const pathname = target.pathname.toLowerCase();
+
+    let isHtml = false;
+    if (pathname.endsWith(".html") || pathname.endsWith(".htm")) {
+      isHtml = true;
+    } else if (pathname.endsWith(".md") || pathname.endsWith(".markdown")) {
+      isHtml = false;
+    } else if (
+      contentType.includes("text/html") ||
+      contentType.includes("application/xhtml+xml")
+    ) {
+      isHtml = true;
+    } else if (
+      contentType.includes("text/markdown") ||
+      contentType.includes("text/x-markdown") ||
+      contentType.includes("text/plain")
+    ) {
+      isHtml = false;
+    } else if (/<!doctype\s+html/i.test(rawContent) || /<html[\s>]/i.test(rawContent)) {
+      isHtml = true;
+    }
+
+    const defaultName = target.pathname.split("/").filter(Boolean).pop() || target.hostname;
+    let title: string;
+    if (isHtml) {
+      title = docTitle(rawContent, defaultName);
+    } else {
+      const slides = parseSlides(rawContent);
+      title = deckTitle(slides, defaultName);
+    }
+
+    sendJson(res, {
+      kind: isHtml ? "html" : "markdown",
+      content: rawContent,
+      html: isHtml ? rawContent : undefined,
+      markdown: !isHtml ? rawContent : undefined,
+      title,
+    });
     return true;
   }
 
@@ -481,6 +520,11 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
         return;
       }
 
+      if (mode.kind === "deck" && mode.remoteDoc && pathname === "/__remote-doc") {
+        sendHtml(res, mode.remoteDoc);
+        return;
+      }
+
       if (mode.kind === "editor" && (await handleEditorRoute(mode, pathname, req, res))) {
         return;
       }
@@ -519,10 +563,10 @@ const program = new Command();
 program
   .name("deckrun")
   .description(
-    "Present a Markdown file in the browser. Run without a file to write one in the built-in editor."
+    "Present a Markdown file, HTML file, or public URL in the browser. Run without a file or URL to write in the built-in editor."
   )
   .version(packageVersion(), "-v, --version", "Print the version number")
-  .argument("[file]", "Markdown file to present. Omit it to open the editor.")
+  .argument("[file]", "Markdown file, HTML file, or public URL to present. Omit it to open the editor.")
   .option("-p, --port <number>", "Port to serve on", "7890")
   .option("--no-open", "Do not automatically open the browser")
   .option("--fullscreen", "Auto-enter fullscreen on first interaction")
@@ -602,60 +646,167 @@ program
       let baseDir: string;
 
       if (file) {
-        const absPath = resolve(process.cwd(), file);
-        baseDir = dirname(absPath);
-        const ext = extname(absPath).toLowerCase();
-
-        if (ext === ".html" || ext === ".htm") {
-          let rawHtml: string;
+        if (/^https?:\/\//i.test(file)) {
+          let target: URL;
           try {
-            rawHtml = readFileSync(absPath, "utf-8");
+            target = new URL(file);
           } catch {
-            console.error(`deckrun: cannot read file '${file}'`);
+            console.error(`deckrun: invalid URL '${file}'`);
             process.exit(1);
           }
 
-          if (opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont) {
+          let upstream: Response;
+          try {
+            upstream = await fetch(target, {
+              redirect: "follow",
+              signal: AbortSignal.timeout(15_000),
+              headers: { "User-Agent": "deckrun" },
+            });
+          } catch (err) {
             console.error(
-              `${c.dim}deckrun: --size, --head-font, and --body-font only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
+              `deckrun: cannot fetch '${file}': ${err instanceof Error ? err.message : "network error"}`
+            );
+            process.exit(1);
+          }
+
+          if (!upstream.ok) {
+            console.error(`deckrun: fetch failed for '${file}' (HTTP ${upstream.status})`);
+            process.exit(1);
+          }
+
+          const rawContent = await upstream.text();
+          if (!rawContent.trim()) {
+            console.error(`deckrun: empty document fetched from '${file}'`);
+            process.exit(1);
+          }
+
+          const contentType = (upstream.headers.get("content-type") ?? "").toLowerCase();
+          const pathname = target.pathname.toLowerCase();
+
+          let isHtml = false;
+          if (pathname.endsWith(".html") || pathname.endsWith(".htm")) {
+            isHtml = true;
+          } else if (pathname.endsWith(".md") || pathname.endsWith(".markdown")) {
+            isHtml = false;
+          } else if (
+            contentType.includes("text/html") ||
+            contentType.includes("application/xhtml+xml")
+          ) {
+            isHtml = true;
+          } else if (
+            contentType.includes("text/markdown") ||
+            contentType.includes("text/x-markdown") ||
+            contentType.includes("text/plain")
+          ) {
+            isHtml = false;
+          } else if (/<!doctype\s+html/i.test(rawContent) || /<html[\s>]/i.test(rawContent)) {
+            isHtml = true;
+          }
+
+          baseDir = process.cwd();
+          const defaultName = target.pathname.split("/").filter(Boolean).pop() || target.hostname;
+
+          if (isHtml) {
+            if (opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont) {
+              console.error(
+                `${c.dim}deckrun: --size, --head-font, and --body-font only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
+              );
+            }
+
+            const title = docTitle(rawContent, defaultName);
+            let docHtml = rawContent;
+            if (!/<base\s/i.test(docHtml)) {
+              if (/<head[^>]*>/i.test(docHtml)) {
+                docHtml = docHtml.replace(/<head[^>]*>/i, (m) => `${m}\n  <base href="${target.href}">`);
+              } else {
+                docHtml = `<base href="${target.href}">\n` + docHtml;
+              }
+            }
+
+            mode = {
+              kind: "deck",
+              html: generateDocHtml("/__remote-doc", title, fullscreen, theme),
+              remoteDoc: docHtml,
+            };
+
+            console.log(`${c.dim}presenting ${file} · ${THEMES[theme].label}${c.reset}`);
+          } else {
+            const slides = parseSlides(rawContent);
+            if (slides.length === 0) {
+              console.error("deckrun: no slides found in the fetched content.");
+              process.exit(1);
+            }
+
+            const title = deckTitle(slides, defaultName);
+            mode = {
+              kind: "deck",
+              html: generateHtml(slides, title, fullscreen, theme, size, fonts),
+            };
+
+            const faces = [
+              fonts.head ? `head ${fontName(fonts.head)}` : "",
+              fonts.body ? `body ${fontName(fonts.body)}` : "",
+            ].filter(Boolean).join(" · ");
+            console.log(
+              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${file} · ${THEMES[theme].label} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
             );
           }
-
-          const title = docTitle(rawHtml, basename(absPath, extname(absPath)));
-          mode = {
-            kind: "deck",
-            html: generateDocHtml(`/${basename(absPath)}`, title, fullscreen, theme),
-          };
-
-          console.log(`${c.dim}presenting ${basename(absPath)} · ${THEMES[theme].label}${c.reset}`);
         } else {
-          let markdown: string;
-          try {
-            markdown = readFileSync(absPath, "utf-8");
-          } catch {
-            console.error(`deckrun: cannot read file '${file}'`);
-            process.exit(1);
+          const absPath = resolve(process.cwd(), file);
+          baseDir = dirname(absPath);
+          const ext = extname(absPath).toLowerCase();
+
+          if (ext === ".html" || ext === ".htm") {
+            let rawHtml: string;
+            try {
+              rawHtml = readFileSync(absPath, "utf-8");
+            } catch {
+              console.error(`deckrun: cannot read file '${file}'`);
+              process.exit(1);
+            }
+
+            if (opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont) {
+              console.error(
+                `${c.dim}deckrun: --size, --head-font, and --body-font only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
+              );
+            }
+
+            const title = docTitle(rawHtml, basename(absPath, extname(absPath)));
+            mode = {
+              kind: "deck",
+              html: generateDocHtml(`/${basename(absPath)}`, title, fullscreen, theme),
+            };
+
+            console.log(`${c.dim}presenting ${basename(absPath)} · ${THEMES[theme].label}${c.reset}`);
+          } else {
+            let markdown: string;
+            try {
+              markdown = readFileSync(absPath, "utf-8");
+            } catch {
+              console.error(`deckrun: cannot read file '${file}'`);
+              process.exit(1);
+            }
+
+            const slides = parseSlides(markdown);
+            if (slides.length === 0) {
+              console.error("deckrun: no slides found in the file.");
+              process.exit(1);
+            }
+
+            const title = deckTitle(slides, basename(absPath, extname(absPath)));
+            mode = {
+              kind: "deck",
+              html: generateHtml(slides, title, fullscreen, theme, size, fonts),
+            };
+
+            const faces = [
+              fonts.head ? `head ${fontName(fonts.head)}` : "",
+              fonts.body ? `body ${fontName(fonts.body)}` : "",
+            ].filter(Boolean).join(" · ");
+            console.log(
+              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)} · ${THEMES[theme].label} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
+            );
           }
-
-          const slides = parseSlides(markdown);
-          if (slides.length === 0) {
-            console.error("deckrun: no slides found in the file.");
-            process.exit(1);
-          }
-
-          const title = deckTitle(slides, basename(absPath, extname(absPath)));
-          mode = {
-            kind: "deck",
-            html: generateHtml(slides, title, fullscreen, theme, size, fonts),
-          };
-
-          const faces = [
-            fonts.head ? `head ${fontName(fonts.head)}` : "",
-            fonts.body ? `body ${fontName(fonts.body)}` : "",
-          ].filter(Boolean).join(" · ");
-          console.log(
-            `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)} · ${THEMES[theme].label} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
-          );
         }
       } else {
         baseDir = process.cwd();

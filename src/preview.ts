@@ -41,7 +41,7 @@ export function generatePreviewHtml(
 <html lang="en" data-theme="${initialTheme}" data-decor="${decorOf(initialTheme)}" data-size="${size}"${fontAttrs}>
 <head>
   <meta charset="UTF-8">
-  <title>preview</title>
+  <title>preview · deckrun</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="${googleFontsHref()}" rel="stylesheet">

@@ -1139,12 +1139,13 @@ export function generateHtml(
   const slideHtml = slides.map((s, i) => renderSlide(s, i)).join("\n");
   const total = slides.length;
 
+  const pageTitle = title ? (title.toLowerCase().includes("deckrun") ? title : `${title} · deckrun`) : "deckrun";
   return `<!DOCTYPE html>
 <html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-size="${size}"${fontAttrs}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escAttr(title)}</title>
+  <title>${escAttr(pageTitle)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="${googleFontsHref([theme], [head, body])}" rel="stylesheet">
@@ -1942,12 +1943,13 @@ export function generateDocHtml(
 ): string {
   const theme = resolveThemeName(themeInput);
 
+  const pageTitle = title ? (title.toLowerCase().includes("deckrun") ? title : `${title} · deckrun`) : "deckrun";
   return `<!DOCTYPE html>
 <html lang="en" data-theme="${theme}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escAttr(title)}</title>
+  <title>${escAttr(pageTitle)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="${googleFontsHref([theme])}" rel="stylesheet">

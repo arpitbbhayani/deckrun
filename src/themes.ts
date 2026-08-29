@@ -97,7 +97,7 @@ export const FONTS: Record<string, FontFace> = {
   newsreader:    { param: "Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400", stack: `'Newsreader', ${SERIF}`, kind: "serif" },
   lora:          { param: "Lora:ital,wght@0,400;0,500;0,600;0,700;1,400",              stack: `'Lora', ${SERIF}`, kind: "serif" },
   plexMono:      { param: "IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400", stack: `'IBM Plex Mono', ${MONO}`, kind: "mono" },
-  jetbrains:     { param: "JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400",    stack: `'JetBrains Mono', ${MONO}`, kind: "mono" },
+  jetbrains:     { param: "JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400",    stack: `'JetBrains Mono', ${MONO}`, kind: "mono" },
   firaCode:      { param: "Fira+Code:wght@400;500;600;700",                            stack: `'Fira Code', ${MONO}`, kind: "mono" },
   spaceMono:     { param: "Space+Mono:ital,wght@0,400;0,700;1,400",                    stack: `'Space Mono', ${MONO}`, kind: "mono" },
   sourceCodePro: { param: "Source+Code+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400",    stack: `'Source Code Pro', ${MONO}`, kind: "mono" },
@@ -254,7 +254,7 @@ const SPECS: Record<string, ThemeSpec> = {
       red: "#bf616a", mauve: "#b48ead", pink: "#d3a3c6",
     },
     roles: { accent: "sapphire", accent2: "blue", accent3: "teal" },
-    type: { display: "manrope", body: "manrope", mono: "jetbrains", weight: 800, tracking: "-0.035em" },
+    type: { display: "jetbrains", body: "jetbrains", mono: "jetbrains", weight: 700, tracking: "-0.025em" },
     decor: "waves",
     hljs: `${HL}nord.min.css`,
   },
@@ -509,7 +509,7 @@ export const THEMES: Record<string, Theme> = Object.fromEntries(
 
 /** `dark` and `light` predate the registry and still name the two originals. */
 const ALIASES: Record<string, string> = {
-  dark: "midnight",
+  dark: "nord",
   light: "daylight",
   mocha: "midnight",
   latte: "daylight",
@@ -518,7 +518,7 @@ const ALIASES: Record<string, string> = {
   "rose-quartz": "rosequartz",
 };
 
-export const DEFAULT_THEME = "midnight";
+export const DEFAULT_THEME = "nord";
 
 /** A theme id from untrusted input, or `null` if it names nothing. */
 export function findTheme(input: string | undefined | null): string | null {
