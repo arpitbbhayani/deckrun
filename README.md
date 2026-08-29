@@ -9,10 +9,11 @@ Write slides in Markdown or bring a self-contained HTML document, run a local se
 - **Technical content** - KaTeX equations and Mermaid diagrams in preview, presentation, HTML, and PDF
 - **Incremental reveals** - step through bullets, prose, equations, code, or diagrams without duplicating slides
 - **Deck linting** - catch empty slides, broken fences/math, dense content, image issues, and invalid reveal markers locally or in CI
+- **AI deck builder** - bring an OpenAI, Anthropic, or Google API key, choose a live model, and generate an editable deck from a brief
 - **Presenter tools** - laser pointer, drawing pen, blank canvas, blackout mode, and `?` for shortcuts
 - **Notes while presenting** - present from the editor and its preview and notes panel follow the deck tab, so the editor is your notes screen
 - **Export** - Markdown, HTML, headless-rendered PDF, or a standalone presenter-ready HTML page
-- **Local-first** - binds only to `127.0.0.1`; nothing is uploaded, and your work stays in browser local storage until export
+- **Local-first** - binds only to `127.0.0.1`; ordinary editing stays in browser storage, and AI sends content only when you explicitly ask it to
 
 ![Slide showing a code-heavy presentation with syntax highlighting](https://github.com/user-attachments/assets/e61d23e7-3f35-46c9-95a0-ce4976b6179c)
 
@@ -157,6 +158,36 @@ deckrun -p 3000            # editor on another port
 
 The preview is not an approximation. Every keystroke is parsed by the same parser the CLI uses, and the slides render inside an iframe fixed at 1600x900 with the deck's own stylesheet. Pressing present POSTs the Markdown back to the server, which builds the deck exactly as `deckrun file.md` would. The output is byte-identical.
 
+### Creating with AI
+
+Choose **Create with AI** on the start screen, or use the **AI** button while
+editing. Pick OpenAI, Anthropic, or Google, paste that provider's API key, and
+Deckrun loads the models available to the key. You can also type a supported
+model ID manually, including when a restricted key cannot list models. Give
+it a brief, optional audience, and slide count, then
+choose one of three workflows:
+
+- Create a new presentation.
+- Revise the current Markdown deck as a separate copy.
+- Add slides to the current deck as a separate copy.
+
+Every result is ordinary Deckrun Markdown in the library, so it can be
+reviewed, edited, themed, presented, and exported through the same path as a
+hand-written deck. AI never silently replaces the open deck.
+
+If a provider returns malformed slide structure or active HTML, Deckrun makes
+one automatic request to rewrite that draft as safe Markdown. If the repair
+still fails validation, nothing is added to the library. This repair attempt
+uses the selected provider and may count toward that provider's usage.
+
+The key is sent over loopback to the local Deckrun process and then to the
+selected provider over HTTPS. It is cleared from the form after connecting,
+kept only in process memory for a short session, never written to browser
+storage or deck content, and forgotten when Deckrun exits. The brief—and the
+current deck only when you explicitly choose revise or append—is sent to the
+provider. Provider usage, billing, retention, and model availability follow
+the provider account's own terms. Review generated facts before presenting.
+
 ### The two bars
 
 The top bar is for decisions: the deck name, the library, and then everything
@@ -238,7 +269,7 @@ Storage layout: an index under `deckrun.decks.v1` holds metadata only, and each 
 
 The open deck autosaves to `localStorage` half a second after you stop typing, the way a local-first drawing tool does. A successful save says nothing — it is automatic and it is reliable, and a clock ticking in the corner is not information. Only a failure speaks up, in the status bar and in a toast.
 
-- Nothing is uploaded. The server is on `127.0.0.1` and only ever sees Markdown you are actively previewing.
+- Ordinary editing uploads nothing. If you use the AI builder, the submitted brief and any explicitly included current deck are sent to the provider you selected.
 - Storage is scoped to the origin, which includes the port. Decks written on `:7890` are not visible on `:3000`, so stay on the default port or pass the same `-p` each time.
 - Browsers cap `localStorage` near 5 MB across all your decks. Past that the save fails loudly and tells you to download or delete, rather than quietly losing work.
 - A browser that blocks storage outright, like a private window, is detected at startup and says so instead of pretending to save.
