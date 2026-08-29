@@ -34,6 +34,9 @@ present-md
 # Serve on the default port 7890 and open the browser
 present-md slides.md
 
+# Present a self-contained HTML page instead of a Markdown deck
+present-md page.html
+
 # Serve on a custom port
 present-md slides.md -p 3000
 
@@ -76,7 +79,7 @@ The server binds to `127.0.0.1` only, so the deck is never exposed on the networ
 
 | Option                | Default | Description                                            |
 | --------------------- | ------- | ------------------------------------------------------ |
-| `[file]`              |         | Markdown file to present. Omit it to open the editor.   |
+| `[file]`              |         | Markdown or HTML file to present. Omit it to open the editor. |
 | `-p, --port <number>` | `7890`  | Port to serve the presentation on                      |
 | `--no-open`           | `false` | Start the HTTP server without opening the browser      |
 | `--fullscreen`        | `false` | Prompt to enter fullscreen on the first key or click   |
@@ -92,9 +95,11 @@ The server binds to `127.0.0.1` only, so the deck is never exposed on the networ
 
 An unknown `--theme`, `--size`, or font is an error rather than a silent fallback, so a typo does not quietly hand you the default. `dark` and `light` still name the two original palettes. In the editor, `--theme` and `--size` set the starting look and `Cmd Shift L` opens the picker to change either one live.
 
+`--size`, `--head-font`, and `--body-font` apply to Markdown decks only. An HTML doc brings its own typography; passing any of them alongside an `.html`/`.htm` file prints a notice and is otherwise ignored.
+
 ## The editor
 
-Run `present-md` with no file and it serves an editor instead of a deck: Markdown on the left, the live deck on the right, and a library of every deck you have written.
+Run `present-md` with no file and it serves an editor instead of a deck. A deck already in this browser resumes with no extra step, exactly as before. The first time you run it — or any time you choose "new" from the library with nothing open yet — you land on a start screen instead: a new Markdown deck, a new or uploaded HTML doc, or the library. Pick Markdown and you get the usual pane pair, Markdown on the left and the live deck on the right, plus a library of every deck and doc you have written.
 
 ```bash
 present-md
@@ -146,19 +151,31 @@ Images are referenced by path, exactly as in a file-based deck. The editor serve
 
 The guide and the palette carry every directive, so the layouts are one keystroke away rather than something to remember. Images are not uploaded or embedded: the editor keeps Markdown, and the files stay on disk where you put them.
 
+### HTML documents
+
+Alongside Markdown decks, present-md can present a second kind of document: a self-contained HTML page with no slide boundaries — a single continuous doc, not a series of slides. There is no blank-slate option: get one into the editor from the start screen by uploading a `.html` file or pointing it at a public HTML URL (fetched server-side, so the page's own CORS policy does not matter), by dropping a `.html` file onto the editor, or on the CLI with `present-md page.html`.
+
+Editing is a plain source pane on the left and a live preview on the right — no syntax highlighting, gutter, guide drawer, or command palette, since there are no slide-authoring directives to catalogue. The preview updates from the textarea directly, with no server round trip.
+
+Presenting wraps the doc in an iframe and layers the tool belt that still makes sense with no slides — laser pointer, pen, blank canvas, blackout, fullscreen, and `?` for controls — on top of it. There is no HUD, slide counter, overview grid, or arrow-key navigation, since there is nothing to count or step through.
+
+A doc authored in the browser editor is expected to be self-contained: inline styles and scripts, and assets from a CDN or a `data:` URI rather than a relative local path, since editor-mode present and PDF serve it from an in-memory copy, not from a folder on disk. A file passed on the CLI does not have that restriction — `present-md page.html` serves it from the file's own directory, exactly like a Markdown deck's images, so `<img src="diagram.png">` next to `page.html` resolves normally.
+
+If a doc runs its own script that listens for keyboard input — an embedded framework, a game, a chart with its own shortcuts — it may end up racing present-md's own listener for a key, since both are attached to the same page. Presenter shortcuts are best-effort in that case, not guaranteed to win.
+
 ### The deck library
 
-Every deck you write is kept in this browser, not just the last one. The `decks` button in the top bar shows how many there are, and `Cmd O` opens the library.
+Every deck or doc you write is kept in this browser, not just the last one. The `decks` button in the top bar shows how many there are, and `Cmd O` opens the library. Markdown decks and HTML docs share one list.
 
-- Each row shows the deck's name, slide count, size, and when you last touched it. Click one, or use the arrows and enter, to open it.
+- Each row shows the name, its kind, a size — slide count for a deck, character count for a doc — and when you last touched it. Click one, or use the arrows and enter, to open it.
 - Decks are listed most recently edited first, so the one you want is usually at the top.
 - The open deck is saved before another one loads, so switching never costs you an edit.
-- Duplicate copies a deck into the library and opens the copy. Delete asks first and is permanent.
-- New deck leaves the current one in the library rather than clearing it.
-- Import, or a `.md` dropped onto the editor, lands the file as a new deck. Name collisions get a numeric suffix rather than overwriting.
+- Duplicate copies an entry into the library and opens the copy. Delete asks first and is permanent.
+- New, from the library, opens the start screen rather than immediately clearing the pane — pick Markdown or HTML there.
+- Import, or a `.md`/`.html` file dropped onto the editor, lands the file as a new entry of the matching kind. Name collisions get a numeric suffix rather than overwriting.
 - Rename with the name field in the top bar. That name is also the export filename.
 
-Storage layout: an index under `presentmd.decks.v1` holds metadata only, and each deck's Markdown lives under `presentmd.deck.<id>`. Listing your decks never reads their text.
+Storage layout: an index under `presentmd.decks.v1` holds metadata only, and each entry's content lives under `presentmd.deck.<id>`. Listing your library never reads that text.
 
 ### Saving
 
@@ -168,17 +185,17 @@ The open deck autosaves to `localStorage` half a second after you stop typing, t
 - Storage is scoped to the origin, which includes the port. Decks written on `:7890` are not visible on `:3000`, so stay on the default port or pass the same `-p` each time.
 - Browsers cap `localStorage` near 5 MB across all your decks. Past that the save fails loudly and tells you to download or delete, rather than quietly losing work.
 - A browser that blocks storage outright, like a private window, is detected at startup and says so instead of pretending to save.
-- Export writes a copy out of the browser. Markdown, PDF, and HTML are all in the `export` menu.
+- Export writes a copy out of the browser. Source, PDF, and a presenter-ready page are all in the `export` menu.
 
 ### Exporting
 
-The `export` button in the top bar opens a menu with three formats. All three are named from the deck name field.
+The `export` button in the top bar opens a menu with three formats. All three are named from the name field, and the menu relabels itself for an HTML doc.
 
-| Format     | Shortcut      | Result                                                              |
-| ---------- | ------------- | ------------------------------------------------------------------- |
-| Markdown   | `Cmd S`       | A plain `.md` file, the same text you see in the editor              |
-| PDF        | `Cmd Shift S` | A real `.pdf` file, one 16:9 page per slide, styling intact           |
-| HTML       |               | One standalone `.html` page holding the whole deck                   |
+| Format               | Shortcut      | Result                                                              |
+| --------------------- | ------------- | ------------------------------------------------------------------- |
+| Markdown / Source     | `Cmd S`       | The plain text you see in the editor — `.md` for a deck, `.html` for a doc |
+| PDF                   | `Cmd Shift S` | A real `.pdf` file — one 16:9 page per slide for a deck, or the doc's own pages for an HTML doc |
+| HTML / Presenter Page |               | One standalone `.html` page: the deck, or the doc wrapped with the presenter tool belt |
 
 PDF export does not hand you a print dialog. The server drives a headless browser over the built deck and streams back the finished file, so there is nothing to configure and nothing to get wrong. Pages are 13.333in by 7.5in, the standard widescreen slide size, with no margins: the theme, its backdrop geometry, code block surfaces, table fills, and background images all come through, and the HUD, arrows, cursor, pets, and speaker notes are stripped.
 
@@ -190,6 +207,8 @@ The HTML export is the same page `present-md` serves: styles and the navigation 
 
 - Fonts and syntax highlighting load from a CDN, so a viewer needs a connection to see them exactly as you do. The theme's colors and its backdrop are inline, so those hold up offline.
 - Images and videos referenced by path stay on your disk. Ship them alongside, or host the page where those paths resolve.
+
+An HTML doc's PDF is not paginated to 16:9 slides — it prints the doc's own `@page`/print CSS (or Chrome's defaults if it has none), exactly as if you had opened the file yourself and pressed print. There is no presenter chrome to strip, since the doc is printed on its own, without the tool-belt wrapper.
 
 ### Preview controls
 
@@ -216,19 +235,24 @@ The HTML export is the same page `present-md` serves: styles and the navigation 
 | `Alt Up`, `Alt Down`| Previous and next slide    |
 | `Esc`               | Close a menu, the palette, or the guide |
 
+`Cmd K` (palette), `Cmd /` (guide), `Cmd D/B/I/E` (snippets), and `Cmd G` (grid) are Markdown-only — an HTML doc's source is plain text with no snippet catalog or grid view. Library, present, and both exports stay wired the same for either kind.
+
 On Windows and Linux, `Ctrl` replaces `Cmd`.
 
 ### Editor routes
 
 The editor adds a few endpoints under `/__`, all local:
 
-| Route        | Purpose                                                            |
-| ------------ | ------------------------------------------------------------------ |
-| `/__preview` | The iframe that renders slides with the deck stylesheet              |
-| `/__parse`   | POST Markdown, get back rendered slides and notes                    |
-| `/__present` | POST Markdown, get back the path to a freshly built deck              |
-| `/__pdf`     | POST Markdown, get back a rendered PDF                                |
-| `/?deck=<n>` | A built deck, kept in memory. The last eight builds are retained      |
+| Route             | Purpose                                                            |
+| ------------------ | ------------------------------------------------------------------ |
+| `/__preview`       | The iframe that renders slides with the deck stylesheet              |
+| `/__parse`         | POST Markdown, get back rendered slides and notes                    |
+| `/__present`       | POST Markdown, get back the path to a freshly built deck              |
+| `/__pdf`           | POST Markdown, get back a rendered PDF                                |
+| `/__present-doc`   | POST an HTML doc, get back the path to its presenter-wrapped page     |
+| `/__pdf-doc`       | POST an HTML doc, get back a rendered PDF of the doc itself            |
+| `/__fetch-doc`     | POST a public URL, get back that page's HTML, fetched server-side     |
+| `/?deck=<n>`       | A built deck or stashed doc, kept in memory. The last eight are retained |
 
 A built deck is served from `/` rather than a subpath on purpose. Served from `/__deck/1`, a slide's `![](diagram.png)` would resolve against `/__deck/` and 404.
 

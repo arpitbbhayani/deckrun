@@ -395,7 +395,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 /* ── Drop target ──────────────────────────────────────────────────────── */
 #pane-edit.is-dropping::after {
-  content: 'drop a Markdown file to open it';
+  content: 'drop a Markdown or HTML file to open it';
   position: absolute;
   inset: 10px;
   z-index: 9;
@@ -1046,6 +1046,121 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
+/* ── HTML doc source / preview ───────────────────────────────────────────
+   These live inside the same #pane-edit / #pane-prev panes the Markdown
+   editor uses, so the divider drag-resize keeps working for free — only the
+   inner content swaps, via [data-doc-kind]. */
+#src-html {
+  display: none;
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 18px 20px;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--text);
+  caret-color: var(--accent);
+  background: transparent;
+  border: 0;
+  outline: none;
+  resize: none;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 2;
+}
+
+#frame-html {
+  display: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+[data-doc-kind="html"] #edit-wrap,
+[data-doc-kind="html"] #nudge,
+[data-doc-kind="html"] #prev-head,
+[data-doc-kind="html"] #stage,
+[data-doc-kind="html"] #notes {
+  display: none !important;
+}
+
+[data-doc-kind="html"] #src-html,
+[data-doc-kind="html"] #frame-html {
+  display: block;
+}
+
+[data-doc-kind="html"] #btn-guide,
+[data-doc-kind="html"] #btn-palette {
+  display: none !important;
+}
+
+/* ── Start screen ─────────────────────────────────────────────────────── */
+#screen-start { position: fixed; inset: 0; z-index: 55; display: none; }
+#screen-start.is-on { display: block; }
+
+#start-box {
+  position: relative;
+  width: min(680px, 92vw);
+  margin: 12vh auto 0;
+  padding: 26px 28px 22px;
+  background: var(--mantle);
+  border: 1px solid var(--surface1);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+}
+
+#start-head { margin-bottom: 18px; }
+#start-head #brand { font-size: 15px; }
+#start-head p { margin-top: 8px; font-size: 12.5px; color: var(--overlay1); }
+
+#start-cards { display: flex; flex-direction: column; gap: 10px; }
+
+.start-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  background: var(--base);
+  border: 1px solid var(--surface0);
+  border-radius: 10px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.start-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+.start-card.is-disabled { opacity: 0.45; pointer-events: none; }
+
+.start-card__title { display: block; font-size: 13px; font-weight: 600; color: var(--text); }
+.start-card__desc { display: block; margin-top: 4px; font-size: 11.5px; color: var(--overlay1); }
+
+.start-card__acts { display: flex; gap: 8px; margin-top: 10px; }
+.start-card__acts button {
+  padding: 5px 10px;
+  font-size: 11.5px;
+  color: var(--subtext1);
+  border: 1px solid var(--surface1);
+  border-radius: 6px;
+  flex: none;
+}
+.start-card__acts button:hover { border-color: var(--accent); color: var(--text); }
+
+.start-card__url { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.start-card__url input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--mantle);
+  border: 1px solid var(--surface1);
+  border-radius: 6px;
+}
+.start-card__url input:focus { border-color: var(--accent); outline: none; }
+.start-card__url button { flex: none; }
+
 /* ── Narrow screens ───────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   #panes { flex-direction: column; }
@@ -1131,6 +1246,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
           <button class="nudge-btn nudge-btn--x" id="nudge-x" title="Dismiss">&times;</button>
         </div>
       </div>
+      <textarea id="src-html" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off" aria-label="HTML source"></textarea>
     </section>
 
     <div id="divider" title="Drag to resize, double-click to reset"></div>
@@ -1156,6 +1272,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         <div id="notes__label">speaker notes</div>
         <div id="notes__text"></div>
       </div>
+      <iframe id="frame-html" title="HTML doc preview"></iframe>
     </section>
   </main>
 
@@ -1232,8 +1349,39 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   </div>
 </div>
 
+<div id="screen-start">
+  <div class="backdrop"></div>
+  <div id="start-box">
+    <div id="start-head">
+      <span id="brand">present-md<span class="caret"></span></span>
+      <p>What are you making?</p>
+    </div>
+    <div id="start-cards">
+      <button class="start-card" id="start-md">
+        <span class="start-card__title">Markdown deck</span>
+        <span class="start-card__desc">Slides written in Markdown, presented one at a time.</span>
+      </button>
+      <div class="start-card" id="start-html-card">
+        <span class="start-card__title">HTML document</span>
+        <span class="start-card__desc">One self-contained page, presented with the laser, pen, and canvas &mdash; no slide boundaries.</span>
+        <span class="start-card__acts">
+          <button id="start-html-upload">upload .html</button>
+          <span class="start-card__url">
+            <input type="url" id="start-html-url" placeholder="https://a-public-page.html" inputmode="url" autocomplete="off" spellcheck="false">
+            <button id="start-html-url-go">load URL</button>
+          </span>
+        </span>
+      </div>
+      <button class="start-card" id="start-lib">
+        <span class="start-card__title">Open from library</span>
+        <span class="start-card__desc" id="start-lib-desc">Decks and docs already in this browser.</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
-<input type="file" id="file-md" accept=".md,.markdown,text/markdown,text/plain" hidden>
+<input type="file" id="file-any" accept=".md,.markdown,text/markdown,text/plain,.html,.htm,text/html" hidden>
 
 <script type="application/json" id="bootstrap">${bootstrapJson(theme, size, fonts)}</script>
 <script>
@@ -1302,11 +1450,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   /** Returns the new deck's id, or null if this browser refused to store it. */
-  function createDeck(name, markdown) {
+  function createDeck(name, content, kind) {
     var id = newDeckId();
-    if (!lsSet(K.deck + id, markdown)) return null;
+    if (!lsSet(K.deck + id, content)) return null;
     var list = loadIndex();
-    list.unshift({ id: id, name: name || 'untitled', slides: 0, chars: markdown.length, at: Date.now() });
+    list.unshift({ id: id, name: name || 'untitled', kind: kind || 'markdown', slides: 0, chars: content.length, at: Date.now() });
     if (!saveIndex(list)) { lsDel(K.deck + id); return null; }
     return id;
   }
@@ -1336,8 +1484,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     for (var i = 0; i < list.length; i++) {
       if (list[i].id === state.deckId) {
         list[i].name = $('docname').value.trim() || 'untitled';
-        list[i].slides = state.slides.length;
-        list[i].chars = src.value.length;
+        list[i].kind = state.kind;
+        if (state.kind === 'html') {
+          list[i].slides = 0;
+          list[i].chars = srcHtml.value.length;
+        } else {
+          list[i].slides = state.slides.length;
+          list[i].chars = src.value.length;
+        }
         list[i].at = Date.now();
         break;
       }
@@ -1347,6 +1501,35 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   function updateDeckCount() {
     $('deck-count').textContent = String(loadIndex().length);
+  }
+
+  /** The open document's own text, whichever kind it is. */
+  function curValue() { return state.kind === 'html' ? srcHtml.value : src.value; }
+
+  /** Relabels the export menu, since "Markdown" makes no sense for a doc. */
+  function paintExportMenu() {
+    var mdName = document.querySelector('#export-menu [data-export="md"] .menu__name');
+    var mdHint = document.querySelector('#export-menu [data-export="md"] .menu__hint');
+    var htmlName = document.querySelector('#export-menu [data-export="html"] .menu__name');
+    var htmlHint = document.querySelector('#export-menu [data-export="html"] .menu__hint');
+    if (state.kind === 'html') {
+      mdName.textContent = 'Source';
+      mdHint.textContent = 'the raw .html file';
+      htmlName.textContent = 'Presenter Page';
+      htmlHint.textContent = 'standalone, with the tool belt built in';
+    } else {
+      mdName.textContent = 'Markdown';
+      mdHint.textContent = 'a plain .md file';
+      htmlName.textContent = 'HTML';
+      htmlHint.textContent = 'one self-contained page';
+    }
+  }
+
+  /** Switches which document kind the chrome is dressed for. */
+  function setDocKind(kind) {
+    state.kind = kind === 'html' ? 'html' : 'markdown';
+    document.documentElement.dataset.docKind = state.kind;
+    paintExportMenu();
   }
 
   // ── Themes ─────────────────────────────────────────────────────────────
@@ -1387,10 +1570,12 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var elNudge = $('nudge'), elNudgeText = $('nudge__text'), elNudgeDo = $('nudge-do'), elNudgeX = $('nudge-x');
   var palette = $('palette'), palInput = $('pal-input'), palList = $('pal-list');
   var guide = $('guide'), guideBody = $('guide-body');
+  var srcHtml = $('src-html'), frameHtml = $('frame-html');
 
   // ── State ──────────────────────────────────────────────────────────────
   var state = {
     deckId: null,
+    kind: 'markdown',
     slides: [],
     notes: [],
     index: 0,
@@ -1696,11 +1881,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var saveTimer = null;
 
   function saveNow() {
-    var ok = lsSet(K.deck + state.deckId, src.value) && touchCurrent();
+    var ok = state.deckId && lsSet(K.deck + state.deckId, curValue()) && touchCurrent();
     if (ok) {
       elSave.className = '';
       elSave.textContent = '';
-    } else {
+    } else if (state.deckId) {
       elSave.className = 'err';
       elSave.textContent = 'not saved: storage full';
       toast('This browser is out of room. Download this deck, or delete one you no longer need.', 'err', 'download', download);
@@ -1709,8 +1894,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   function scheduleSave() {
     if (saveTimer) clearTimeout(saveTimer);
-    // Writing a megabyte of Markdown costs real time. Back off on big decks.
-    saveTimer = setTimeout(saveNow, src.value.length > 1024 * 1024 ? 1500 : 500);
+    // Writing a megabyte of content costs real time. Back off on big docs.
+    saveTimer = setTimeout(saveNow, curValue().length > 1024 * 1024 ? 1500 : 500);
   }
 
   // ── Text insertion, undo-safe ──────────────────────────────────────────
@@ -2149,6 +2334,12 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   function download() {
     var name = slugify($('docname').value);
+    if (state.kind === 'html') {
+      if (!/\\.html?$/.test(name)) name += '.html';
+      saveBlob(name, new Blob([srcHtml.value], { type: 'text/html;charset=utf-8' }));
+      toast('Downloaded ' + name);
+      return;
+    }
     if (!/\\.(md|markdown)$/.test(name)) name += '.md';
     saveBlob(name, new Blob([src.value], { type: 'text/markdown;charset=utf-8' }));
     toast('Downloaded ' + name);
@@ -2163,17 +2354,22 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
 
-  /** Downloads the built deck as one standalone page. */
+  function isEmpty() {
+    return state.kind === 'html' ? !srcHtml.value.trim() : !state.slides.length;
+  }
+
+  /** Downloads the built deck or doc as one standalone page. */
   function exportHtml() {
-    if (!state.slides.length) { toast('Nothing to export yet.', 'warn'); return; }
-    buildDeck(false)
+    if (isEmpty()) { toast('Nothing to export yet.', 'warn'); return; }
+    var builder = state.kind === 'html' ? buildHtmlDoc : buildDeck;
+    builder(false)
       .then(function (data) { return fetch(data.path); })
       .then(function (r) {
         if (!r.ok) throw new Error('server said ' + r.status);
         return r.text();
       })
       .then(function (html) {
-        var name = slugify($('docname').value).replace(/\\.(md|markdown)$/, '') + '.html';
+        var name = slugify($('docname').value).replace(/\\.(md|markdown|html?)$/, '') + '.html';
         saveBlob(name, new Blob([html], { type: 'text/html;charset=utf-8' }));
         toast('Downloaded ' + name + '. Fonts and highlighting load from a CDN, so it needs a connection.');
       })
@@ -2188,23 +2384,21 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var pdfInFlight = false;
 
   function exportPdf() {
-    if (!state.slides.length) { toast('Nothing to export yet.', 'warn'); return; }
+    if (isEmpty()) { toast('Nothing to export yet.', 'warn'); return; }
     if (pdfInFlight) { toast('Already building a PDF.'); return; }
     pdfInFlight = true;
     elSave.className = 'warn';
     elSave.textContent = 'building the PDF';
 
-    fetch('/__pdf', {
+    var pdfUrl = state.kind === 'html' ? '/__pdf-doc' : '/__pdf';
+    var pdfBody = state.kind === 'html'
+      ? { html: srcHtml.value, title: $('docname').value }
+      : { markdown: src.value, theme: state.theme, size: state.size, head: state.head, body: state.body, title: $('docname').value };
+
+    fetch(pdfUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        markdown: src.value,
-        theme: state.theme,
-        size: state.size,
-        head: state.head,
-        body: state.body,
-        title: $('docname').value
-      })
+      body: JSON.stringify(pdfBody)
     })
       .then(function (r) {
         if (r.status === 501) {
@@ -2223,9 +2417,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       })
       .then(function (blob) {
         if (!blob) return;
-        var name = slugify($('docname').value).replace(/\\.(md|markdown)$/, '') + '.pdf';
+        var name = slugify($('docname').value).replace(/\\.(md|markdown|html?)$/, '') + '.pdf';
         saveBlob(name, blob);
-        toast('Downloaded ' + name + ', one 16:9 page per slide.');
+        toast('Downloaded ' + name + (state.kind === 'html' ? '.' : ', one 16:9 page per slide.'));
       })
       .catch(function (err) { toast('Could not export the PDF: ' + err.message, 'err'); })
       .then(function () {
@@ -2236,14 +2430,15 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       });
   }
 
-  /** No local browser to drive: hand the deck to the print dialog instead. */
+  /** No local browser to drive: hand the deck or doc to the print dialog instead. */
   function printFallback(detail) {
     var tab = window.open('about:blank', '_blank');
-    buildDeck(true)
+    var builder = state.kind === 'html' ? buildHtmlDoc : buildDeck;
+    builder(true)
       .then(function (data) {
         var url = location.origin + data.path;
         if (!tab) {
-          toast('Allow pop-ups, or press Cmd P on the deck, to save a PDF.', 'warn', 'open here', function () { location.href = url; });
+          toast('Allow pop-ups, or press Cmd P, to save a PDF.', 'warn', 'open here', function () { location.href = url; });
           return;
         }
         tab.location.replace(url);
@@ -2251,7 +2446,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       })
       .catch(function (err) {
         if (tab) tab.close();
-        toast('Could not build the deck: ' + err.message, 'err');
+        toast('Could not build the page: ' + err.message, 'err');
       });
   }
 
@@ -2274,10 +2469,27 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     });
   }
 
+  function buildHtmlDoc(forPrint) {
+    return fetch('/__present-doc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        html: srcHtml.value,
+        theme: state.theme,
+        title: $('docname').value,
+        print: !!forPrint
+      })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('server said ' + r.status);
+      return r.json();
+    });
+  }
+
   function present() {
-    if (!state.slides.length) { toast('Nothing to present yet.', 'warn'); return; }
+    if (isEmpty()) { toast('Nothing to present yet.', 'warn'); return; }
+    var builder = state.kind === 'html' ? buildHtmlDoc : buildDeck;
     var tab = window.open('about:blank', '_blank');
-    buildDeck(false)
+    builder(false)
       .then(function (data) {
         var url = location.origin + data.path;
         if (tab) tab.location.replace(url);
@@ -2285,7 +2497,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       })
       .catch(function (err) {
         if (tab) tab.close();
-        toast('Could not build the deck: ' + err.message, 'err');
+        toast('Could not build the page: ' + err.message, 'err');
       });
   }
 
@@ -2610,15 +2822,38 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     pushFrame();
   }
 
-  /** Load a deck into the editor, saving whatever is open first. */
+  /** The status-bar counters' HTML-doc analog: chars and caret position. */
+  function renderHtmlCounts() {
+    elChipSlides.textContent = srcHtml.value.length + ' chars';
+    var before = srcHtml.value.slice(0, srcHtml.selectionStart || 0);
+    var lines = before.split('\\n');
+    elPos.textContent = 'Ln ' + lines.length + ', Col ' + (lines[lines.length - 1].length + 1);
+    elWords.textContent = '';
+  }
+
+  /** Load a deck or doc into the editor, saving whatever is open first. */
   function openDeck(id, announce) {
-    if (!findDeck(id)) { toast('That deck is gone.', 'warn'); return; }
-    if (id !== state.deckId) saveNow();
+    var meta = findDeck(id);
+    if (!meta) { toast('That deck is gone.', 'warn'); return; }
+    if (state.deckId && id !== state.deckId) saveNow();
     state.deckId = id;
     lsSet(K.current, id);
-    var meta = findDeck(id);
-    src.value = readDeck(id);
+    setDocKind(meta.kind || 'markdown');
     $('docname').value = meta.name;
+    updateDeckCount();
+    elSave.className = '';
+    elSave.textContent = '';
+
+    if (state.kind === 'html') {
+      srcHtml.value = readDeck(id);
+      frameHtml.srcdoc = srcHtml.value;
+      renderHtmlCounts();
+      if (announce) toast('Opened ' + meta.name);
+      srcHtml.focus();
+      return;
+    }
+
+    src.value = readDeck(id);
     src.setSelectionRange(0, 0);
     src.scrollTop = 0;
     state.index = 0;
@@ -2627,9 +2862,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     syncScroll();
     updateCaretUi();
     refresh();
-    elSave.className = '';
-    elSave.textContent = '';
-    updateDeckCount();
     if (announce) toast('Opened ' + meta.name);
     src.focus();
   }
@@ -2640,7 +2872,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   function newDeck() {
     saveNow();
-    var id = createDeck(uniqueName('untitled'), '');
+    var id = createDeck(uniqueName('untitled'), '', 'markdown');
     if (!id) { noRoom(); return; }
     openDeck(id);
     toast('New deck. Press ' + CMD + ' K to see what you can add.');
@@ -2649,7 +2881,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   function duplicateDeck() {
     saveNow();
     var meta = findDeck(state.deckId);
-    var id = createDeck(uniqueName((meta ? meta.name : 'deck') + ' copy'), src.value);
+    var id = createDeck(uniqueName((meta ? meta.name : 'deck') + ' copy'), curValue(), state.kind);
     if (!id) { noRoom(); return; }
     openDeck(id);
     toast('Duplicated');
@@ -2668,7 +2900,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       if (list.length) {
         openDeck(list[0].id);
       } else {
-        var fresh = createDeck('deck', '');
+        var fresh = createDeck('deck', '', 'markdown');
         if (fresh) openDeck(fresh);
       }
     }
@@ -2704,10 +2936,18 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       name.textContent = deck.name + (deck.id === state.deckId ? '  (open)' : '');
       var meta = document.createElement('div');
       meta.className = 'lib-row__meta';
-      var slides = deck.id === state.deckId ? state.slides.length : deck.slides;
-      meta.textContent = (slides || 0) + (slides === 1 ? ' slide' : ' slides') +
-        '  \u00b7  ' + Math.max(1, Math.round((deck.chars || 0) / 1024)) + ' KB' +
-        '  \u00b7  ' + timeAgo(deck.at || Date.now());
+      var kind = deck.kind || 'markdown';
+      if (kind === 'html') {
+        var chars = deck.id === state.deckId ? srcHtml.value.length : deck.chars;
+        meta.textContent = 'html' +
+          '  \u00b7  ' + Math.max(1, Math.round((chars || 0) / 1024)) + ' KB' +
+          '  \u00b7  ' + timeAgo(deck.at || Date.now());
+      } else {
+        var slides = deck.id === state.deckId ? state.slides.length : deck.slides;
+        meta.textContent = (slides || 0) + (slides === 1 ? ' slide' : ' slides') +
+          '  \u00b7  ' + Math.max(1, Math.round((deck.chars || 0) / 1024)) + ' KB' +
+          '  \u00b7  ' + timeAgo(deck.at || Date.now());
+      }
       main.appendChild(name);
       main.appendChild(meta);
       row.appendChild(main);
@@ -2720,7 +2960,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       dupe.addEventListener('click', function (e) {
         e.stopPropagation();
         if (deck.id === state.deckId) { duplicateDeck(); renderLibrary(); return; }
-        var id = createDeck(uniqueName(deck.name + ' copy'), readDeck(deck.id));
+        var id = createDeck(uniqueName(deck.name + ' copy'), readDeck(deck.id), deck.kind || 'markdown');
         if (!id) { noRoom(); return; }
         updateDeckCount();
         renderLibrary();
@@ -2755,16 +2995,119 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     $('library').classList.add('is-on');
   }
 
-  $('lib-new').addEventListener('click', function () { closeOverlays(); newDeck(); });
+  $('lib-new').addEventListener('click', function () { closeOverlays(); showStartScreen(); });
 
   $('btn-decks').addEventListener('click', openLibrary);
+
+  // ── Start screen ─────────────────────────────────────────────────────
+  // Shown on a true first run, and whenever "new" is chosen explicitly from
+  // the library — never on an ordinary launch that has a deck to resume.
+  function showStartScreen() {
+    $('start-lib').classList.toggle('is-disabled', !loadIndex().length);
+    $('screen-start').classList.add('is-on');
+  }
+
+  function hideStartScreenSilently() {
+    $('screen-start').classList.remove('is-on');
+  }
+
+  /** Escape/backdrop close. With nothing open yet, that would be a dead end,
+      so the one specified fallback is a blank Markdown deck. */
+  function hideStartScreen(fallbackIfEmpty) {
+    hideStartScreenSilently();
+    if (fallbackIfEmpty && !state.deckId) startNewMarkdown();
+  }
+
+  function startNewMarkdown() {
+    var id = createDeck(uniqueName('untitled'), D.welcome, 'markdown');
+    hideStartScreenSilently();
+    if (!id) {
+      // Storage refuses even a first write: use the deck unsaved rather than
+      // leaving the editor with nothing open.
+      state.deckId = newDeckId();
+      setDocKind('markdown');
+      src.value = D.welcome;
+      $('docname').value = 'deck';
+      src.setSelectionRange(0, 0);
+      src.scrollTop = 0;
+      paint();
+      syncScroll();
+      updateCaretUi();
+      refresh();
+      updateDeckCount();
+      elSave.className = 'err';
+      elSave.textContent = 'this browser blocks local storage';
+      setTimeout(function () {
+        toast('This browser will not let the editor save anything. Download your deck to keep it.', 'err', 'download', download);
+      }, 700);
+      src.focus();
+      return;
+    }
+    openDeck(id);
+    setTimeout(function () {
+      toast('This deck is yours to overwrite. Press ' + CMD + ' K to see every layout and style.', null, 'open the guide', function () { runAction('guide'); });
+    }, 900);
+  }
+
+  function startOpenLibrary() {
+    if (!loadIndex().length) return;
+    hideStartScreenSilently();
+    openLibrary();
+  }
+
+  /** Fetches a public HTML page server-side (sidesteps CORS) and opens it as a new HTML doc. */
+  function loadHtmlUrl() {
+    var input = $('start-html-url');
+    var raw = input.value.trim();
+    if (!raw) { input.focus(); return; }
+    var url;
+    try { url = new URL(raw); } catch (err) { toast('Not a valid URL.', 'err'); return; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      toast('URL must be http or https.', 'err');
+      return;
+    }
+    var btn = $('start-html-url-go');
+    btn.disabled = true;
+    fetch('/__fetch-doc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url.toString() }),
+    })
+      .then(function (res) {
+        return res.json().then(function (body) {
+          if (!res.ok) throw new Error(body.detail || body.error || 'could not load that URL');
+          return body;
+        });
+      })
+      .then(function (body) {
+        saveNow();
+        var name = uniqueName(body.title || url.hostname);
+        var id = createDeck(name, body.html, 'html');
+        if (!id) { noRoom(); return; }
+        input.value = '';
+        hideStartScreenSilently();
+        openDeck(id);
+        toast('Loaded ' + url.hostname + ' as a new HTML doc');
+      })
+      .catch(function (err) { toast('Could not load URL: ' + err.message, 'err'); })
+      .then(function () { btn.disabled = false; });
+  }
+
+  $('start-md').addEventListener('click', startNewMarkdown);
+  $('start-html-upload').addEventListener('click', function () { $('file-any').click(); });
+  $('start-html-url-go').addEventListener('click', loadHtmlUrl);
+  $('start-html-url').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); loadHtmlUrl(); }
+  });
+  $('start-lib').addEventListener('click', startOpenLibrary);
+  $('screen-start').querySelector('.backdrop').addEventListener('click', function () { hideStartScreen(true); });
 
   function runAction(name) {
     if (name === 'present') present();
     else if (name === 'download') download();
     else if (name === 'pdf') exportPdf();
     else if (name === 'html') exportHtml();
-    else if (name === 'open') $('file-md').click();
+    else if (name === 'open') $('file-any').click();
     else if (name === 'grid') setMode(state.mode === 'grid' ? 'single' : 'grid');
     else if (name === 'theme') openThemes();
     else if (name === 'guide') { guide.classList.add('is-on'); }
@@ -2822,6 +3165,35 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     }
   });
 
+  // ── HTML doc source ──────────────────────────────────────────────────
+  var htmlPreviewTimer = null;
+
+  function onHtmlInput() {
+    scheduleSave();
+    renderHtmlCounts();
+    if (htmlPreviewTimer) clearTimeout(htmlPreviewTimer);
+    htmlPreviewTimer = setTimeout(function () { frameHtml.srcdoc = srcHtml.value; }, 140);
+  }
+
+  srcHtml.addEventListener('input', onHtmlInput);
+  srcHtml.addEventListener('click', renderHtmlCounts);
+  srcHtml.addEventListener('keyup', function (e) {
+    if (e.key.indexOf('Arrow') === 0 || e.key === 'Home' || e.key === 'End' ||
+        e.key === 'PageUp' || e.key === 'PageDown') renderHtmlCounts();
+  });
+  srcHtml.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    srcHtml.focus();
+    var inserted = false;
+    try { inserted = document.execCommand('insertText', false, '  '); } catch (err) {}
+    if (!inserted) {
+      var s = srcHtml.selectionStart, e2 = srcHtml.selectionEnd;
+      srcHtml.setRangeText('  ', s, e2, 'end');
+    }
+    onHtmlInput();
+  });
+
   // Drag and drop a .md file onto the editor to open it.
   ['dragenter', 'dragover'].forEach(function (type) {
     paneEdit.addEventListener(type, function (e) {
@@ -2845,7 +3217,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       if (/\\.(md|markdown|txt)$/i.test(f.name)) loadMarkdownFile(f);
-      else toast('Skipped ' + f.name + '. Drop a Markdown file to open it.', 'warn');
+      else if (/\\.html?$/i.test(f.name)) loadHtmlFile(f);
+      else toast('Skipped ' + f.name + '. Drop a Markdown or HTML file to open it.', 'warn');
     }
   });
 
@@ -2856,8 +3229,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       saveNow();
       var markdown = String(fr.result).replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');
       var name = uniqueName(file.name.replace(/\\.(md|markdown|txt)$/i, '') || 'untitled');
-      var id = createDeck(name, markdown);
+      var id = createDeck(name, markdown, 'markdown');
       if (!id) { noRoom(); return; }
+      hideStartScreenSilently();
       openDeck(id);
       toast('Loaded ' + file.name + ' as a new deck');
     };
@@ -2865,8 +3239,30 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     fr.readAsText(file);
   }
 
-  $('file-md').addEventListener('change', function (e) {
-    if (e.target.files[0]) loadMarkdownFile(e.target.files[0]);
+  /** An uploaded HTML doc lands as a new library entry, same as a .md file. */
+  function loadHtmlFile(file) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      saveNow();
+      var html = String(fr.result);
+      var name = uniqueName(file.name.replace(/\\.html?$/i, '') || 'untitled');
+      var id = createDeck(name, html, 'html');
+      if (!id) { noRoom(); return; }
+      hideStartScreenSilently();
+      openDeck(id);
+      toast('Loaded ' + file.name + ' as a new HTML doc');
+    };
+    fr.onerror = function () { toast('Could not read ' + file.name, 'err'); };
+    fr.readAsText(file);
+  }
+
+  $('file-any').addEventListener('change', function (e) {
+    var f = e.target.files[0];
+    if (f) {
+      if (/\\.(md|markdown|txt)$/i.test(f.name)) loadMarkdownFile(f);
+      else if (/\\.html?$/i.test(f.name)) loadHtmlFile(f);
+      else toast('Unrecognized file type.', 'warn');
+    }
     e.target.value = '';
   });
 
@@ -2992,6 +3388,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
     if (themesOpen()) return;
 
+    if ($('screen-start').classList.contains('is-on')) {
+      if (e.key === 'Escape') { e.preventDefault(); hideStartScreen(true); }
+      return;
+    }
+
     if ($('library').classList.contains('is-on') && !mod) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -3023,17 +3424,19 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
     var key = e.key.toLowerCase();
 
-    if (key === 'k' && !e.shiftKey) { e.preventDefault(); openPalette(); }
+    var md = state.kind === 'markdown';
+
+    if (key === 'k' && !e.shiftKey && md) { e.preventDefault(); openPalette(); }
     else if (key === 'o') { e.preventDefault(); openLibrary(); }
-    else if (key === '/') { e.preventDefault(); runAction('guide'); }
+    else if (key === '/' && md) { e.preventDefault(); runAction('guide'); }
     else if (key === 's' && e.shiftKey) { e.preventDefault(); exportPdf(); }
     else if (key === 's') { e.preventDefault(); saveNow(); download(); }
     else if (key === 'enter') { e.preventDefault(); present(); }
-    else if (key === 'd') { e.preventDefault(); insertSnippet(bySnippetId['slide-break']); }
-    else if (key === 'b') { e.preventDefault(); insertSnippet(bySnippetId.bold); }
-    else if (key === 'i') { e.preventDefault(); insertSnippet(bySnippetId.italic); }
-    else if (key === 'e') { e.preventDefault(); insertSnippet(bySnippetId['inline-code']); }
-    else if (key === 'g') { e.preventDefault(); runAction('grid'); }
+    else if (key === 'd' && md) { e.preventDefault(); insertSnippet(bySnippetId['slide-break']); }
+    else if (key === 'b' && md) { e.preventDefault(); insertSnippet(bySnippetId.bold); }
+    else if (key === 'i' && md) { e.preventDefault(); insertSnippet(bySnippetId.italic); }
+    else if (key === 'e' && md) { e.preventDefault(); insertSnippet(bySnippetId['inline-code']); }
+    else if (key === 'g' && md) { e.preventDefault(); runAction('grid'); }
     else if (key === 'l' && e.shiftKey) { e.preventDefault(); runAction('theme'); }
   });
 
@@ -3111,35 +3514,10 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   // Carry over a deck saved before the library existed.
   var legacy = lsGet(K.oldDoc, null);
   if (legacy !== null && !loadIndex().length) {
-    createDeck(lsGet(K.oldName, 'deck'), legacy);
+    createDeck(lsGet(K.oldName, 'deck'), legacy, 'markdown');
     lsDel(K.oldDoc);
     lsDel(K.oldName);
   }
-
-  var index = loadIndex();
-  var firstRun = index.length === 0;
-  var storageBlocked = false;
-  if (firstRun) {
-    state.deckId = createDeck('welcome', D.welcome);
-    if (!state.deckId) {
-      // Private windows and locked-down browsers refuse localStorage entirely.
-      state.deckId = newDeckId();
-      storageBlocked = true;
-    }
-  } else {
-    var wanted = lsGet(K.current, null);
-    state.deckId = findDeck(wanted) ? wanted : index[0].id;
-  }
-
-  lsSet(K.current, state.deckId);
-  var openMeta = findDeck(state.deckId);
-  src.value = storageBlocked ? D.welcome : readDeck(state.deckId);
-  $('docname').value = openMeta ? openMeta.name : 'deck';
-  updateDeckCount();
-  // Assigning value parks the caret at the end in some browsers, which would
-  // open the deck on its last slide. Start at the top instead.
-  src.setSelectionRange(0, 0);
-  src.scrollTop = 0;
 
   document.documentElement.dataset.theme = state.theme;
   document.documentElement.dataset.decor = THEME_BY_ID[state.theme].decor;
@@ -3157,27 +3535,18 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   buildGuide();
   startTips();
   applySplit();
-  paint();
-  updateCaretUi();
-  refresh();
+  paintExportMenu();
+  updateDeckCount();
 
-  if (storageBlocked) {
-    elSave.className = 'err';
-    elSave.textContent = 'this browser blocks local storage';
-    setTimeout(function () {
-      toast('This browser will not let the editor save anything. Download your deck to keep it.', 'err', 'download', download);
-    }, 700);
-  } else if (firstRun) {
-    setTimeout(function () {
-      toast('This deck is yours to overwrite. Press ' + CMD + ' K to see every layout and style.', null, 'open the guide', function () { runAction('guide'); });
-    }, 900);
+  // A deck to resume opens with zero clicks, exactly as before. Only a true
+  // first run — nothing in the library at all — shows the start screen.
+  var index = loadIndex();
+  if (index.length === 0) {
+    showStartScreen();
+  } else {
+    var wanted = lsGet(K.current, null);
+    openDeck(findDeck(wanted) ? wanted : index[0].id);
   }
-
-  src.focus();
-  src.setSelectionRange(0, 0);
-  src.scrollTop = 0;
-  syncScroll();
-  updateCaretUi();
 })();
 </script>
 </body>

@@ -7,7 +7,7 @@ import { resolve, dirname, basename, extname } from "path";
 import { Command } from "commander";
 import open from "open";
 import { parseSlides, type Slide } from "./parser.js";
-import { generateHtml, renderSlide } from "./generate.js";
+import { generateHtml, generateDocHtml, renderSlide } from "./generate.js";
 import {
   DEFAULT_SIZE,
   DEFAULT_THEME,
@@ -49,6 +49,7 @@ function packageVersion(): string {
 
 const MIME: Record<string, string> = {
   ".html":  "text/html; charset=utf-8",
+  ".htm":   "text/html; charset=utf-8",
   ".css":   "text/css",
   ".js":    "application/javascript",
   ".mjs":   "application/javascript",
@@ -96,6 +97,13 @@ async function findFreePort(preferred: number): Promise<number> {
 function deckTitle(slides: Slide[], fallback: string): string {
   const heading = slides[0]?.html.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i);
   const text = heading ? heading[1].replace(/<[^>]+>/g, "").trim() : "";
+  return text || fallback;
+}
+
+/** An HTML doc's own `<title>`, with inline markup stripped. */
+function docTitle(html: string, fallback: string): string {
+  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const text = match ? match[1].replace(/<[^>]+>/g, "").trim() : "";
   return text || fallback;
 }
 
@@ -310,6 +318,146 @@ async function handleEditorRoute(
     return true;
   }
 
+  if (pathname === "/__fetch-doc" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req)) as { url?: string };
+    const raw = (body.url ?? "").trim();
+
+    let target: URL;
+    try {
+      target = new URL(raw);
+    } catch {
+      res.writeHead(422, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "invalid url" }));
+      return true;
+    }
+    if (target.protocol !== "http:" && target.protocol !== "https:") {
+      res.writeHead(422, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "url must be http or https" }));
+      return true;
+    }
+
+    let upstream: Response;
+    try {
+      // Fetched server-side, not from the browser, so a page with no
+      // Access-Control-Allow-Origin still loads fine.
+      upstream = await fetch(target, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(15_000),
+        headers: { "User-Agent": "present-md" },
+      });
+    } catch (err) {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "fetch failed",
+          detail: err instanceof Error ? err.message : "network error",
+        })
+      );
+      return true;
+    }
+
+    if (!upstream.ok) {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({ error: "fetch failed", detail: `upstream responded ${upstream.status}` })
+      );
+      return true;
+    }
+
+    const html = await upstream.text();
+    if (html.length > MAX_BODY) {
+      res.writeHead(413, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "too large",
+          detail: `page is larger than ${Math.round(MAX_BODY / 1024 / 1024)} MB`,
+        })
+      );
+      return true;
+    }
+    if (!html.trim()) {
+      res.writeHead(422, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "empty document" }));
+      return true;
+    }
+
+    sendJson(res, { html, title: docTitle(html, target.hostname) });
+    return true;
+  }
+
+  if (pathname === "/__present-doc" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req)) as {
+      html?: string;
+      theme?: string;
+      title?: string;
+      print?: boolean;
+    };
+    const raw = body.html ?? "";
+    if (!raw.trim()) {
+      res.writeHead(422, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "empty document" }));
+      return true;
+    }
+    const theme = resolveThemeName(body.theme);
+    const title = docTitle(raw, body.title?.trim() || "present-md");
+    const forPrint = body.print === true;
+    const docPath = stashDeck(raw);
+    const wrapperPath = stashDeck(
+      generateDocHtml(docPath, title, forPrint ? false : mode.fullscreen, theme)
+    );
+    sendJson(res, { path: forPrint ? `${wrapperPath}&print=1` : wrapperPath, docPath });
+    return true;
+  }
+
+  if (pathname === "/__pdf-doc" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req)) as {
+      html?: string;
+      title?: string;
+    };
+    const raw = body.html ?? "";
+    if (!raw.trim()) {
+      res.writeHead(422, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "empty document" }));
+      return true;
+    }
+
+    const browser = await findBrowser();
+    if (!browser) {
+      res.writeHead(501, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "no browser",
+          detail:
+            "No Chrome, Chromium, Edge, or Brave found. Set PRESENT_MD_BROWSER to one to export PDFs directly.",
+        })
+      );
+      return true;
+    }
+
+    const title = docTitle(raw, body.title?.trim() || "present-md");
+    // Print the raw doc directly, with no chrome wrapper: its own @page /
+    // print CSS (or Chrome's defaults) governs pagination, and there is no
+    // presenter chrome to strip since there is none in the printed page.
+    const docPath = stashDeck(raw);
+
+    try {
+      const pdf = await renderPdfSerial(`${mode.origin}${docPath}`, browser);
+      const filename = safeFilename(body.title?.trim() || title) + ".pdf";
+      res.writeHead(200, {
+        "Content-Type": "application/pdf",
+        "Content-Length": pdf.length,
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      });
+      res.end(pdf);
+    } catch (err) {
+      const detail = err instanceof PdfError ? err.message : "rendering failed";
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "render failed", detail }));
+    }
+    return true;
+  }
+
   return false;
 }
 
@@ -456,34 +604,59 @@ program
       if (file) {
         const absPath = resolve(process.cwd(), file);
         baseDir = dirname(absPath);
+        const ext = extname(absPath).toLowerCase();
 
-        let markdown: string;
-        try {
-          markdown = readFileSync(absPath, "utf-8");
-        } catch {
-          console.error(`present-md: cannot read file '${file}'`);
-          process.exit(1);
+        if (ext === ".html" || ext === ".htm") {
+          let rawHtml: string;
+          try {
+            rawHtml = readFileSync(absPath, "utf-8");
+          } catch {
+            console.error(`present-md: cannot read file '${file}'`);
+            process.exit(1);
+          }
+
+          if (opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont) {
+            console.error(
+              `${c.dim}present-md: --size, --head-font, and --body-font only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
+            );
+          }
+
+          const title = docTitle(rawHtml, basename(absPath, extname(absPath)));
+          mode = {
+            kind: "deck",
+            html: generateDocHtml(`/${basename(absPath)}`, title, fullscreen, theme),
+          };
+
+          console.log(`${c.dim}presenting ${basename(absPath)} · ${THEMES[theme].label}${c.reset}`);
+        } else {
+          let markdown: string;
+          try {
+            markdown = readFileSync(absPath, "utf-8");
+          } catch {
+            console.error(`present-md: cannot read file '${file}'`);
+            process.exit(1);
+          }
+
+          const slides = parseSlides(markdown);
+          if (slides.length === 0) {
+            console.error("present-md: no slides found in the file.");
+            process.exit(1);
+          }
+
+          const title = deckTitle(slides, basename(absPath, extname(absPath)));
+          mode = {
+            kind: "deck",
+            html: generateHtml(slides, title, fullscreen, theme, size, fonts),
+          };
+
+          const faces = [
+            fonts.head ? `head ${fontName(fonts.head)}` : "",
+            fonts.body ? `body ${fontName(fonts.body)}` : "",
+          ].filter(Boolean).join(" · ");
+          console.log(
+            `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)} · ${THEMES[theme].label} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
+          );
         }
-
-        const slides = parseSlides(markdown);
-        if (slides.length === 0) {
-          console.error("present-md: no slides found in the file.");
-          process.exit(1);
-        }
-
-        const title = deckTitle(slides, basename(absPath, extname(absPath)));
-        mode = {
-          kind: "deck",
-          html: generateHtml(slides, title, fullscreen, theme, size, fonts),
-        };
-
-        const faces = [
-          fonts.head ? `head ${fontName(fonts.head)}` : "",
-          fonts.body ? `body ${fontName(fonts.body)}` : "",
-        ].filter(Boolean).join(" · ");
-        console.log(
-          `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)} · ${THEMES[theme].label} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
-        );
       } else {
         baseDir = process.cwd();
         mode = { kind: "editor", theme, size, fonts, fullscreen };

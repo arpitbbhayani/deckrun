@@ -1908,3 +1908,557 @@ ${autoFullscreen ? `<div id="fs-hint">
 </body>
 </html>`;
 }
+
+/** Base layout for the doc-mode wrapper: fills the viewport with the iframe. */
+const DOC_CSS = `html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--crust);
+}
+
+#doc-frame {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: none;
+  z-index: 1;
+  background: var(--crust);
+}`;
+
+/**
+ * Wraps an arbitrary, already-self-contained HTML document (served at
+ * `docUrl`) in an iframe and layers the subset of the presenter tool belt
+ * that makes sense with no slide boundaries — laser pointer, pen/annotation
+ * canvas, blank canvas, blackout, fullscreen, and the controls overlay — on
+ * top of it as fixed-position overlays. There is no HUD progress bar, slide
+ * counter, overview grid, or arrow-key navigation, since there are no slides.
+ */
+export function generateDocHtml(
+  docUrl: string,
+  title: string,
+  autoFullscreen = false,
+  themeInput: ThemeName = DEFAULT_THEME
+): string {
+  const theme = resolveThemeName(themeInput);
+
+  return `<!DOCTYPE html>
+<html lang="en" data-theme="${theme}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escAttr(title)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="${googleFontsHref([theme])}" rel="stylesheet">
+  <style>
+${RESET_CSS}
+
+${themeRootCss(theme)}
+
+${DOC_CSS}
+
+${CHROME_CSS}
+
+${PRESENTER_CSS}
+  </style>
+</head>
+<body>
+
+<iframe id="doc-frame" src="${escAttr(docUrl)}" title="${escAttr(title)}"></iframe>
+
+<div id="hud">
+  <div id="hud-row">
+    <div id="hud-tools">
+      <button class="hud-btn" id="btn-laser" title="Laser pointer (L)">laser <kbd>L</kbd></button>
+      <button class="hud-btn" id="btn-pen" title="Draw on the doc (D)">pen <kbd>D</kbd></button>
+      <button class="hud-btn" id="btn-blank" title="Blank canvas over the doc (C)">canvas <kbd>C</kbd></button>
+      <button class="hud-btn" id="btn-black" title="Black out the screen (B)">black <kbd>B</kbd></button>
+      <div id="pen-bar">
+        <span id="hud-sep"></span>
+        <span id="pen-swatches"></span>
+        <button class="hud-btn" id="btn-erase" title="Eraser (E)">erase <kbd>E</kbd></button>
+        <button class="hud-btn" id="btn-thin" title="Thinner ([)">&minus;</button>
+        <span id="pen-width">4px</span>
+        <button class="hud-btn" id="btn-thick" title="Thicker (])">+</button>
+        <button class="hud-btn" id="btn-clear" title="Clear (X)">clear <kbd>X</kbd></button>
+      </div>
+      <button class="hud-btn" id="btn-help" title="Show every control (?)">? controls</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="board"></canvas>
+<div id="laser" aria-hidden="true"></div>
+<div id="blackout" title="Click or press B to come back"></div>
+
+<div id="help" role="dialog" aria-modal="true" aria-label="Presenter controls">
+  <div id="help__backdrop" data-close="help"></div>
+  <div id="help__panel">
+    <button id="help__close" data-close="help" title="Close (Esc)">&times;</button>
+    <div id="help__head">
+      <h2>controls</h2>
+      <p>press <kbd>?</kbd> any time</p>
+    </div>
+    <div id="help__grid"></div>
+    <div id="help__foot">
+      Annotations are not saved to disk, and reset if the page reloads.
+    </div>
+  </div>
+</div>
+
+${autoFullscreen ? `<div id="fs-hint">
+  <div id="fs-hint__inner">Press any key or click to enter fullscreen</div>
+</div>` : ''}
+
+<script>
+(function () {
+  'use strict';
+
+  const elBoard    = document.getElementById('board');
+  const elLaser    = document.getElementById('laser');
+  const elBlack    = document.getElementById('blackout');
+  const elHelp     = document.getElementById('help');
+  const elPenBar   = document.getElementById('pen-bar');
+  const elPenWidth = document.getElementById('pen-width');
+  const elFrame    = document.getElementById('doc-frame');
+
+  // ── Presenter tools ───────────────────────────────────────────────────
+  // One flat stroke list — unlike the slide deck, there is only ever one
+  // "page" here, so there is nothing to index annotations by.
+  const ctx = elBoard.getContext('2d');
+  const rootStyle = getComputedStyle(document.documentElement);
+
+  function themeColor(name, fallback) {
+    const v = rootStyle.getPropertyValue('--' + name).trim();
+    return v || fallback;
+  }
+
+  const PEN_COLORS = [
+    themeColor('red',    '#f38ba8'),
+    themeColor('yellow', '#f9e2af'),
+    themeColor('green',  '#a6e3a1'),
+    themeColor('blue',   '#89b4fa'),
+    themeColor('text',   '#cdd6f4'),
+  ];
+  const PEN_WIDTHS = [2, 3, 4, 6, 9, 14];
+  const ERASER_SCALE = 5;
+
+  let strokes = [];             // flat list: [{ color, width, erase, pts }]
+  let colorIdx = 0;
+  let widthIdx = 2;
+  let stroke = null;            // the stroke being drawn right now
+
+  let penOn   = false;
+  let blankOn = false;
+  let eraseOn = false;
+  let laserOn = false;
+  let blackOn = false;
+  let helpOn  = false;
+
+  const tools = {
+    laser: document.getElementById('btn-laser'),
+    pen:   document.getElementById('btn-pen'),
+    blank: document.getElementById('btn-blank'),
+    black: document.getElementById('btn-black'),
+    erase: document.getElementById('btn-erase'),
+  };
+
+  /** Click handler that drops focus, so Space does not re-trigger it. */
+  function onClick(el, fn) {
+    if (!el) return;
+    el.addEventListener('click', function (e) {
+      el.blur();
+      fn(e);
+    });
+  }
+
+  // ── Canvas sizing and painting ───────────────────────────────────────
+  function sizeBoard() {
+    const dpr = window.devicePixelRatio || 1;
+    elBoard.width  = Math.round(window.innerWidth  * dpr);
+    elBoard.height = Math.round(window.innerHeight * dpr);
+    elBoard.style.width  = window.innerWidth  + 'px';
+    elBoard.style.height = window.innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    redrawBoard();
+  }
+
+  function strokeStyle(s) {
+    ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = s.erase ? s.width * ERASER_SCALE : s.width;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+  }
+
+  function paintStroke(s) {
+    const w = window.innerWidth, h = window.innerHeight;
+    if (!s.pts.length) return;
+    strokeStyle(s);
+    ctx.beginPath();
+    ctx.moveTo(s.pts[0][0] * w, s.pts[0][1] * h);
+    if (s.pts.length === 1) {
+      // A tap still deserves a dot.
+      ctx.lineTo(s.pts[0][0] * w + 0.01, s.pts[0][1] * h);
+    } else {
+      for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i][0] * w, s.pts[i][1] * h);
+    }
+    ctx.stroke();
+  }
+
+  /** Draw only the newest segment — repainting everything on every move is
+      wasteful once the board carries a few dozen strokes. */
+  function paintTip(s) {
+    const w = window.innerWidth, h = window.innerHeight;
+    const n = s.pts.length;
+    if (n < 2) { paintStroke(s); return; }
+    strokeStyle(s);
+    ctx.beginPath();
+    ctx.moveTo(s.pts[n - 2][0] * w, s.pts[n - 2][1] * h);
+    ctx.lineTo(s.pts[n - 1][0] * w, s.pts[n - 1][1] * h);
+    ctx.stroke();
+  }
+
+  function redrawBoard() {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    for (let i = 0; i < strokes.length; i++) paintStroke(strokes[i]);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function hasInk() { return strokes.length > 0; }
+
+  // ── Drawing ──────────────────────────────────────────────────────────
+  function pointOf(e) {
+    return [e.clientX / window.innerWidth, e.clientY / window.innerHeight];
+  }
+
+  elBoard.addEventListener('pointerdown', function (e) {
+    if (!penOn) return;
+    e.preventDefault();
+    try { elBoard.setPointerCapture(e.pointerId); } catch (err) {}
+    stroke = {
+      color: PEN_COLORS[colorIdx],
+      width: PEN_WIDTHS[widthIdx],
+      erase: eraseOn,
+      pts: [pointOf(e)],
+    };
+    strokes.push(stroke);
+    paintStroke(stroke);
+  });
+
+  elBoard.addEventListener('pointermove', function (e) {
+    if (!stroke) return;
+    e.preventDefault();
+    stroke.pts.push(pointOf(e));
+    paintTip(stroke);
+  });
+
+  function endStroke() {
+    if (!stroke) return;
+    stroke = null;
+    ctx.globalCompositeOperation = 'source-over';
+    syncTools();
+  }
+
+  elBoard.addEventListener('pointerup', endStroke);
+  elBoard.addEventListener('pointercancel', endStroke);
+  elBoard.addEventListener('pointerleave', endStroke);
+
+  function undoStroke() {
+    if (!strokes.length) return;
+    strokes.pop();
+    redrawBoard();
+    syncTools();
+  }
+
+  function clearBoard() {
+    strokes = [];
+    redrawBoard();
+    syncTools();
+  }
+
+  // ── Tool state ───────────────────────────────────────────────────────
+  function setPen(on) {
+    penOn = !!on;
+    if (!penOn) {
+      endStroke();
+      // The blank canvas has no meaning without a pen to use on it.
+      blankOn = false;
+      eraseOn = false;
+    }
+    syncTools();
+  }
+
+  function setBlank(on) {
+    blankOn = !!on;
+    // Opening the blank canvas arms the pen; closing it leaves the pen alone.
+    if (blankOn) penOn = true;
+    syncTools();
+  }
+
+  function setEraser(on) {
+    eraseOn = !!on;
+    if (eraseOn) penOn = true;
+    syncTools();
+  }
+
+  function setLaser(on) {
+    laserOn = !!on;
+    syncTools();
+  }
+
+  function setBlack(on) {
+    blackOn = !!on;
+    syncTools();
+  }
+
+  function setColor(i) {
+    colorIdx = Math.max(0, Math.min(PEN_COLORS.length - 1, i));
+    eraseOn = false;
+    penOn = true;
+    syncTools();
+  }
+
+  function nudgeWidth(delta) {
+    widthIdx = Math.max(0, Math.min(PEN_WIDTHS.length - 1, widthIdx + delta));
+    syncTools();
+  }
+
+  const swatches = [];
+  (function buildSwatches() {
+    const host = document.getElementById('pen-swatches');
+    PEN_COLORS.forEach(function (color, i) {
+      const b = document.createElement('button');
+      b.className = 'swatch';
+      b.style.background = color;
+      b.title = 'Pen color ' + (i + 1);
+      onClick(b, function () { setColor(i); });
+      host.appendChild(b);
+      swatches.push(b);
+    });
+  })();
+
+  function syncTools() {
+    tools.laser.classList.toggle('is-on', laserOn);
+    tools.pen.classList.toggle('is-on', penOn);
+    tools.blank.classList.toggle('is-on', blankOn);
+    tools.black.classList.toggle('is-on', blackOn);
+    tools.erase.classList.toggle('is-on', eraseOn);
+
+    elBoard.classList.toggle('is-drawing', penOn);
+    elBoard.classList.toggle('is-erasing', penOn && eraseOn);
+    elBoard.classList.toggle('is-blank', blankOn);
+
+    elPenBar.classList.toggle('is-on', penOn);
+    elPenWidth.textContent = PEN_WIDTHS[widthIdx] + 'px';
+    swatches.forEach(function (b, i) {
+      b.classList.toggle('is-on', !eraseOn && i === colorIdx);
+    });
+
+    elLaser.classList.toggle('is-on', laserOn);
+    document.body.classList.toggle('laser-on', laserOn);
+    elBlack.classList.toggle('is-on', blackOn);
+    elHelp.classList.toggle('is-on', helpOn);
+  }
+
+  // ── Laser pointer ────────────────────────────────────────────────────
+  // Same-origin doc, no border on the iframe: client coordinates line up
+  // with the outer viewport, so no translation is needed either way.
+  function onPointerMove(e) {
+    if (!laserOn) return;
+    elLaser.style.transform = 'translate(' + e.clientX + 'px, ' + e.clientY + 'px)';
+  }
+  document.addEventListener('pointermove', onPointerMove, { passive: true });
+
+  // ── Controls overlay ─────────────────────────────────────────────────
+  const HELP_GROUPS = [
+    { title: 'screen', rows: [
+      { keys: ['F'],                      desc: 'Fullscreen' },
+      { keys: ['B'],                      desc: 'Black out the screen' },
+      { keys: ['Esc'],                    desc: 'Close what is open' },
+      { keys: ['?'],                      desc: 'These controls' },
+    ]},
+    { title: 'point', rows: [
+      { keys: ['L'],                      desc: 'Laser pointer' },
+    ]},
+    { title: 'draw', rows: [
+      { keys: ['D'],                      desc: 'Pen, over the doc' },
+      { keys: ['C'],                      desc: 'Blank canvas' },
+      { keys: ['1', '2', '3', '4', '5'],  desc: 'Pen color' },
+      { keys: ['E'],                      desc: 'Eraser' },
+      { keys: ['['], desc: 'Thinner' },
+      { keys: [']'], desc: 'Thicker' },
+      { keys: ['Ctrl', 'Z'],              desc: 'Undo last stroke' },
+      { keys: ['X'],                      desc: 'Clear' },
+    ]},
+  ];
+
+  (function buildHelp() {
+    const grid = document.getElementById('help__grid');
+    HELP_GROUPS.forEach(function (group) {
+      const box = document.createElement('div');
+      box.className = 'help-group';
+
+      const title = document.createElement('div');
+      title.className = 'help-group__title';
+      title.textContent = group.title;
+      box.appendChild(title);
+
+      group.rows.forEach(function (row) {
+        const line = document.createElement('div');
+        line.className = 'help-row';
+
+        const desc = document.createElement('span');
+        desc.textContent = row.desc;
+
+        const keys = document.createElement('span');
+        keys.className = 'help-row__keys';
+        row.keys.forEach(function (k) {
+          const kbd = document.createElement('kbd');
+          kbd.textContent = k;
+          keys.appendChild(kbd);
+        });
+
+        line.appendChild(desc);
+        line.appendChild(keys);
+        box.appendChild(line);
+      });
+
+      grid.appendChild(box);
+    });
+  })();
+
+  function setHelp(on) {
+    helpOn = !!on;
+    syncTools();
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+    else document.exitFullscreen().catch(() => {});
+  }
+
+  // ── Tool wiring ──────────────────────────────────────────────────────
+  onClick(tools.laser, function () { setLaser(!laserOn); });
+  onClick(tools.pen,   function () { setPen(!penOn); });
+  onClick(tools.blank, function () { setBlank(!blankOn); });
+  onClick(tools.black, function () { setBlack(true); });
+  onClick(tools.erase, function () { setEraser(!eraseOn); });
+  onClick(document.getElementById('btn-thin'),  function () { nudgeWidth(-1); });
+  onClick(document.getElementById('btn-thick'), function () { nudgeWidth(1); });
+  onClick(document.getElementById('btn-clear'), function () { clearBoard(); });
+  onClick(document.getElementById('btn-help'),  function () { setHelp(!helpOn); });
+  onClick(elBlack, function () { setBlack(false); });
+
+  Array.prototype.forEach.call(elHelp.querySelectorAll('[data-close="help"]'), function (el) {
+    onClick(el, function () { setHelp(false); });
+  });
+
+  window.addEventListener('resize', sizeBoard);
+
+  // ── Keyboard ─────────────────────────────────────────────────────────
+  function onKeydown(e) {
+    const k = e.key;
+
+    // Undo is the only modifier combo we claim; the rest is the browser's.
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      if ((k === 'z' || k === 'Z') && hasInk()) {
+        e.preventDefault();
+        undoStroke();
+      }
+      return;
+    }
+
+    // Each overlay swallows keys until it is dismissed, outermost first.
+    if (helpOn) {
+      if (k === 'Escape' || k === '?' || k === 'h' || k === 'H') {
+        e.preventDefault();
+        setHelp(false);
+      }
+      return;
+    }
+    if (k === '?' || k === 'h' || k === 'H') {
+      e.preventDefault();
+      setHelp(true);
+      return;
+    }
+
+    if (blackOn) {
+      // A stray key should not do anything behind a black screen.
+      e.preventDefault();
+      if (k === 'Escape' || k === 'b' || k === 'B' || k === ' ' || k === 'Enter') setBlack(false);
+      return;
+    }
+    if (k === 'b' || k === 'B') {
+      e.preventDefault();
+      setBlack(true);
+      return;
+    }
+
+    // Pen sub-controls only bind while the pen is down, so the letters stay
+    // free for everything else the rest of the time.
+    if (penOn) {
+      if (k >= '1' && k <= String(PEN_COLORS.length)) { e.preventDefault(); setColor(parseInt(k, 10) - 1); return; }
+      if (k === 'e' || k === 'E') { e.preventDefault(); setEraser(!eraseOn); return; }
+      if (k === '[') { e.preventDefault(); nudgeWidth(-1); return; }
+      if (k === ']') { e.preventDefault(); nudgeWidth(1); return; }
+      if (k === 'x' || k === 'X') { e.preventDefault(); clearBoard(); return; }
+    }
+
+    switch (k) {
+      case 'f':
+      case 'F':
+        e.preventDefault();
+        toggleFullscreen();
+        break;
+      case 'l':
+      case 'L':
+        e.preventDefault();
+        setLaser(!laserOn);
+        break;
+      case 'd':
+      case 'D':
+        e.preventDefault();
+        setPen(!penOn);
+        break;
+      case 'c':
+      case 'C':
+        e.preventDefault();
+        setBlank(!blankOn);
+        break;
+      case 'Escape':
+        e.preventDefault();
+        // Peel one layer at a time: canvas, pen, laser.
+        if (blankOn) setBlank(false);
+        else if (penOn) setPen(false);
+        else if (laserOn) setLaser(false);
+        break;
+    }
+  }
+  document.addEventListener('keydown', onKeydown);
+
+  // A same-origin, unsandboxed iframe still owns its own keyboard/pointer
+  // focus, so the parent's listeners never fire for events that start
+  // inside the doc unless they are attached there too.
+  function attachToFrame() {
+    try {
+      elFrame.contentWindow.addEventListener('keydown', onKeydown);
+      elFrame.contentWindow.addEventListener('pointermove', onPointerMove, { passive: true });
+    } catch (err) {}
+  }
+  elFrame.addEventListener('load', attachToFrame);
+
+  // ── Print export ─────────────────────────────────────────────────────
+  // Doc-mode PDF/print targets the raw doc URL directly (no chrome, see
+  // index.ts /__pdf-doc), so this wrapper page never needs to print itself.
+
+  // ── Init ─────────────────────────────────────────────────────────────
+  sizeBoard();
+  syncTools();
+})();
+</script>
+</body>
+</html>`;
+}
