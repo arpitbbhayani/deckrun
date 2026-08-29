@@ -608,6 +608,19 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 #tipbar button { color: var(--overlay0); padding: 0 3px; }
 #tipbar button:hover { color: var(--text); }
 
+#follow-chip {
+  flex: 0 0 auto;
+  border: 1px solid var(--surface0);
+  border-radius: 5px;
+  padding: 1px 7px;
+  color: var(--accent2);
+  cursor: pointer;
+  user-select: none;
+}
+#follow-chip:hover { border-color: var(--accent2); }
+#follow-chip b { font-weight: 600; }
+#follow-chip.hidden { display: none; }
+
 /* ── Command palette ──────────────────────────────────────────────────── */
 #palette, #guide, #library { position: fixed; inset: 0; z-index: 40; display: none; }
 #palette.is-on, #guide.is-on, #library.is-on { display: block; }
@@ -1312,6 +1325,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     <span id="words">0 words</span>
     <span id="chip-slides">0 slides</span>
     <span id="save-state"></span>
+    <span id="follow-chip" class="hidden" title="The editor is mirroring the presented deck. Click to stop following.">following deck &middot; <b id="follow-slide">1</b></span>
     <span id="tipbar">
       <span class="tag">tip</span>
       <span id="tip-text"></span>
@@ -1722,6 +1736,75 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     if (saved && saved.length) saved.forEach(function (id) { state.dismissed[id] = true; });
   } catch (e) {}
 
+  // ── Following the presented deck ───────────────────────────────────────
+  // Presenting hands the deck tab this editor's session id (ps=... in the
+  // URL), and the editor listens on that same channel: the preview and the
+  // notes panel mirror the deck's current slide, so the editor window is the
+  // presenter's screen and the deck tab is the projector. No second window
+  // is involved.
+  var FOLLOW_KEY = 'deckrun.presenter.session';
+  var followSid = null;
+  try { followSid = sessionStorage.getItem(FOLLOW_KEY); } catch (e) {}
+  if (!followSid) {
+    followSid = (window.crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2);
+    try { sessionStorage.setItem(FOLLOW_KEY, followSid); } catch (e) {}
+  }
+  var followChan = (typeof BroadcastChannel !== 'undefined')
+    ? new BroadcastChannel('deckrun:' + followSid)
+    : null;
+
+  var following = false;   // the editor is mirroring the deck right now
+  var expectingDeck = false; // a present just went out: follow the deck that answers
+  var deckNotes = [];      // the deck's own notes, authoritative while following
+  var followChipEl = $('follow-chip');
+  var followSlideEl = $('follow-slide');
+
+  /** The editor drives the deck as well as the preview: wherever the
+      presenter lands in the editor, the deck goes there too. The deck echoes
+      its state back over the same channel, which is what keeps both in step. */
+  function announceIndex(i) {
+    if (followChan) followChan.postMessage({ id: followSid, type: 'goto', index: i });
+  }
+
+  function followDeck(i) {
+    var n = state.slides.length;
+    if (!n) return;
+    i = Math.max(0, Math.min(n - 1, i));
+    var changed = i !== state.index;
+    state.index = i;
+    state.notes = deckNotes;
+    followSlideEl.textContent = String(i + 1);
+    if (changed) pushFrame();
+    renderCounts();
+  }
+
+  if (followChan) {
+    followChan.onmessage = function (e) {
+      var m = e.data || {};
+      if (m.id !== followSid) return;
+      if (m.type === 'init') {
+        deckNotes = m.notes || [];
+        if (expectingDeck) {
+          expectingDeck = false;
+          following = true;
+        }
+        followChipEl.classList.toggle('hidden', !following);
+      } else if (m.type === 'state') {
+        if (following) followDeck(m.index);
+      }
+    };
+    setInterval(function () {
+      followChan.postMessage({ id: followSid, type: 'ready' });
+    }, 2000);
+  }
+
+  followChipEl.addEventListener('click', function () {
+    following = false;
+    followChipEl.classList.add('hidden');
+  });
+
   // ── Toasts ─────────────────────────────────────────────────────────────
   function toast(message, kind, actionLabel, action) {
     var el = document.createElement('div');
@@ -1960,6 +2043,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       }
     }
     post({ type: 'index', index: state.index });
+    announceIndex(state.index);
     renderCounts();
   }
 
@@ -2571,11 +2655,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   function present() {
     if (isEmpty()) { toast('Nothing to present yet.', 'warn'); return; }
+    expectingDeck = true;
     var builder = state.kind === 'html' ? buildHtmlDoc : buildDeck;
     var tab = window.open('about:blank', '_blank');
     builder(false)
       .then(function (data) {
-        var url = location.origin + data.path;
+        var url = location.origin + data.path +
+          (data.path.indexOf('?') >= 0 ? '&' : '?') + 'ps=' + followSid;
         if (tab) tab.location.replace(url);
         else toast('Allow pop-ups to present in a new tab.', 'warn', 'present here', function () { location.href = url; });
       })
@@ -3366,6 +3452,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var parseTimer = null;
 
   function onInput() {
+    // Typing takes the editor back from the deck.
+    if (following) { following = false; followChipEl.classList.add('hidden'); }
     paint();
     syncScroll();
     updateCaretUi();
