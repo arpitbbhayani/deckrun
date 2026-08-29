@@ -144,6 +144,23 @@ Errors fail the command. Warnings also fail by default, making the command
 useful in CI; `--max-warnings N` changes that threshold and `-1` allows any
 number of warnings. Pass `-` as the file to lint standard input.
 
+The rules it applies, in the order they are reported:
+
+| Rule id | Severity | What it catches |
+| --- | --- | --- |
+| `empty-deck` | error | No slide content at all |
+| `empty-slide` | error | A slide with nothing but whitespace |
+| `unclosed-code-fence` | error | A code fence opened but never closed |
+| `unclosed-display-math` | error | `$$` (or `\[`) display math with no closing delimiter |
+| `untagged-code-fence` | warning | A fenced code block with no language tag |
+| `dense-prose` | warning | A paragraph over 200 words |
+| `excessive-bullets` | warning | More than 7 top-level list items in one slide |
+| `long-heading` | warning | A heading over 64 characters |
+| `missing-image-alt` | warning | An image with no alt text |
+| `invalid-image-opacity` | error or warning | Opacity outside the `0`–`1` range (error), or not a number (warning) |
+| `malformed-reveal-marker` | error | A `{reveal` with no closing `}` |
+| `excessive-reveal-markers` | warning | More than 12 `{reveal}` markers in one slide |
+
 ## The editor
 
 Run `deckrun` with no file and it serves an editor instead of a deck. A deck already in this browser resumes with no extra step, exactly as before. The first time you run it — or any time you choose "new" from the library with nothing open yet — you land on a start screen instead: a new Markdown deck, a new or uploaded HTML doc, or the library. Pick Markdown and you get the usual pane pair, Markdown on the left and the live deck on the right, plus a library of every deck and doc you have written.
