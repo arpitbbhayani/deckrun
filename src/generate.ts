@@ -15,6 +15,23 @@ import {
   type SizeName,
   type ThemeName,
 } from "./themes.js";
+import {
+  DEFAULT_TEMPLATE,
+  DEFAULT_TRANSITION,
+  resolveTemplateName,
+  resolveTransitionName,
+  TEMPLATE_CSS,
+  TRANSITION_CSS,
+  type TemplateName,
+  type TransitionName,
+} from "./presentation-options.js";
+import {
+  RICH_CONTENT_CSS,
+  RICH_CONTENT_RUNTIME,
+  richContentFeatures,
+  richContentHead,
+} from "./rich-content.js";
+import { FRAGMENT_CSS, FRAGMENT_RUNTIME } from "./fragments.js";
 
 export {
   DECOR_CSS,
@@ -1120,26 +1137,37 @@ export interface FontChoice {
   body?: string | null;
 }
 
+export interface PresentationChoice {
+  template?: TemplateName | string | null;
+  transition?: TransitionName | string | null;
+  /** Standalone pages use CDN assets because the local vendor routes do not travel. */
+  standalone?: boolean;
+}
+
 export function generateHtml(
   slides: Slide[],
   title: string,
   autoFullscreen = false,
   themeInput: ThemeName = DEFAULT_THEME,
   sizeInput: SizeName = DEFAULT_SIZE,
-  fonts: FontChoice = {}
+  fonts: FontChoice = {},
+  presentation: PresentationChoice = {}
 ): string {
   const theme = resolveThemeName(themeInput);
   const size = resolveSizeName(sizeInput);
+  const template = resolveTemplateName(presentation.template ?? DEFAULT_TEMPLATE);
+  const transition = resolveTransitionName(presentation.transition ?? DEFAULT_TRANSITION);
   const head = findFont(fonts.head);
   const body = findFont(fonts.body);
   const fontAttrs =
     (head ? ` data-head="${head}"` : "") + (body ? ` data-body="${body}"` : "");
   const slideHtml = slides.map((s, i) => renderSlide(s, i)).join("\n");
   const total = slides.length;
+  const rich = richContentFeatures(slides);
 
   const pageTitle = title ? (title.toLowerCase().includes("deckrun") ? title : `${title} · deckrun`) : "deckrun";
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-size="${size}"${fontAttrs}>
+<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-size="${size}" data-template="${template}" data-transition="${transition}"${fontAttrs}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1149,6 +1177,7 @@ export function generateHtml(
   <link href="${googleFontsHref([theme], [head, body])}" rel="stylesheet">
   <link rel="stylesheet" href="${hljsHref(theme)}">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  ${richContentHead(rich, presentation.standalone ? "cdn" : "local")}
   <style>
 ${RESET_CSS}
 
@@ -1159,6 +1188,14 @@ ${sizeRootCss(size)}
 ${fontOverrideCss()}
 
 ${SLIDE_CSS}
+
+${TEMPLATE_CSS}
+
+${TRANSITION_CSS}
+
+${FRAGMENT_CSS}
+
+${RICH_CONTENT_CSS}
 
 ${DECOR_CSS}
 
@@ -1225,12 +1262,17 @@ ${slideHtml}
 
 <div id="overview" class="hidden"></div>
 
-<div id="kbd-hint">← → navigate &nbsp;·&nbsp; O overview &nbsp;·&nbsp; F fullscreen &nbsp;·&nbsp; L laser &nbsp;·&nbsp; D draw &nbsp;·&nbsp; ? controls</div>
+<div id="kbd-hint">← → reveal / navigate &nbsp;·&nbsp; O overview &nbsp;·&nbsp; F fullscreen &nbsp;·&nbsp; L laser &nbsp;·&nbsp; D draw &nbsp;·&nbsp; ? controls</div>
 
 ${autoFullscreen ? `<div id="fs-hint">
   <div id="fs-hint__inner">Press any key or click to enter fullscreen</div>
 </div>` : ''}
 
+<script>
+${FRAGMENT_RUNTIME}
+
+${RICH_CONTENT_RUNTIME}
+</script>
 <script>
 (function () {
   'use strict';
@@ -1253,15 +1295,74 @@ ${autoFullscreen ? `<div id="fs-hint">
   const elPenBar   = document.getElementById('pen-bar');
   const elPenWidth = document.getElementById('pen-width');
 
+  if (window.deckrunPrepareFragments) {
+    window.deckrunPrepareFragments(document.getElementById('presentation'), false);
+  }
+
+  const fragmentSteps = slides.map(() => 0);
+
+  function fragmentsAt(index) {
+    return Array.from(slides[index].querySelectorAll('.fragment'));
+  }
+
+  function applyFragmentStep(index) {
+    const fragments = fragmentsAt(index);
+    const step = Math.max(0, Math.min(fragmentSteps[index] || 0, fragments.length));
+    fragmentSteps[index] = step;
+    fragments.forEach(function (fragment, i) {
+      const shown = i < step;
+      fragment.classList.toggle('is-revealed', shown);
+      fragment.setAttribute('aria-hidden', shown ? 'false' : 'true');
+    });
+  }
+
+  function revealNext() {
+    const count = fragmentsAt(cur).length;
+    if ((fragmentSteps[cur] || 0) >= count) return false;
+    fragmentSteps[cur] = (fragmentSteps[cur] || 0) + 1;
+    applyFragmentStep(cur);
+    updateHud();
+    return true;
+  }
+
+  function concealPrevious() {
+    if ((fragmentSteps[cur] || 0) <= 0) return false;
+    fragmentSteps[cur] -= 1;
+    applyFragmentStep(cur);
+    updateHud();
+    return true;
+  }
+
   // ── Syntax highlighting ──────────────────────────────────────────────
   // Guarded: the highlighter comes off a CDN, and a deck presented offline
   // should still navigate rather than die on a missing global.
-  if (window.hljs) hljs.highlightAll();
+  if (window.hljs) {
+    document.querySelectorAll('pre code:not(.language-mermaid):not(.lang-mermaid)').forEach(function (block) {
+      try { window.hljs.highlightElement(block); } catch (e) {}
+    });
+  }
+
+  const richReady = window.deckrunRenderRichContent
+    ? window.deckrunRenderRichContent(document.getElementById('presentation'))
+    : Promise.resolve();
 
   // ── Slide navigation ─────────────────────────────────────────────────
-  function showSlide(next, direction) {
+  function showSlide(next, direction, fragmentMode) {
     const prev = cur;
-    if (next < 0 || next >= total || next === prev) return;
+    if (next < 0 || next >= total) return;
+
+    if (next === prev && !fragmentMode) return;
+
+    const nextFragments = fragmentsAt(next).length;
+    fragmentSteps[next] = fragmentMode === 'start' || (fragmentMode !== 'end' && direction === 'forward')
+      ? 0
+      : nextFragments;
+    applyFragmentStep(next);
+
+    if (next === prev) {
+      updateHud();
+      return;
+    }
 
     const slideOut = slides[prev];
     const slideIn  = slides[next];
@@ -1284,10 +1385,18 @@ ${autoFullscreen ? `<div id="fs-hint">
     slideOut.classList.add(exitClass);
 
     // Clean up exit class after transition
-    slideOut.addEventListener('transitionend', function cleanup() {
+    var cleaned = false;
+    function cleanup() {
+      if (cleaned) return;
+      cleaned = true;
       slideOut.classList.remove(exitClass, 'exit-left', 'exit-right');
       slideOut.removeEventListener('transitionend', cleanup);
-    });
+    }
+    slideOut.addEventListener('transitionend', cleanup);
+    // The no-motion preset has no transitionend event. The timeout also guards interrupted
+    // transitions, so no slide can retain an exit class indefinitely.
+    if (document.documentElement.dataset.transition === 'none') cleanup();
+    else setTimeout(cleanup, 650);
 
     cur = next;
     updateHud();
@@ -1298,12 +1407,19 @@ ${autoFullscreen ? `<div id="fs-hint">
     elCur.textContent = String(cur + 1);
     const pct = total > 1 ? (cur / (total - 1)) * 100 : 100;
     elFill.style.width = pct + '%';
-    elBtnPrev.style.opacity = cur === 0 ? '0.2' : '1';
-    elBtnNext.style.opacity = cur === total - 1 ? '0.2' : '1';
+    const step = fragmentSteps[cur] || 0;
+    const count = fragmentsAt(cur).length;
+    elBtnPrev.style.opacity = cur === 0 && step === 0 ? '0.2' : '1';
+    elBtnNext.style.opacity = cur === total - 1 && step >= count ? '0.2' : '1';
   }
 
-  function next() { showSlide(cur + 1, 'forward');  }
-  function prev() { showSlide(cur - 1, 'backward'); }
+  function next() {
+    if (!revealNext()) showSlide(cur + 1, 'forward');
+  }
+
+  function prev() {
+    if (!concealPrevious()) showSlide(cur - 1, 'backward');
+  }
 
   // ── Overview mode ────────────────────────────────────────────────────
   function buildOverview() {
@@ -1324,6 +1440,10 @@ ${autoFullscreen ? `<div id="fs-hint">
       const clone = slide.cloneNode(true);
       clone.classList.add('is-active');
       clone.style.transition = 'none';
+      clone.querySelectorAll('.fragment').forEach(function (fragment) {
+        fragment.classList.add('is-revealed');
+        fragment.setAttribute('aria-hidden', 'false');
+      });
       inner.appendChild(clone);
 
       thumb.appendChild(num);
@@ -1603,8 +1723,8 @@ ${autoFullscreen ? `<div id="fs-hint">
   // ── Controls overlay ─────────────────────────────────────────────────
   const HELP_GROUPS = [
     { title: 'navigate', rows: [
-      { keys: ['→', '↓', 'Space'],        desc: 'Next slide' },
-      { keys: ['←', '↑', 'Backspace'],    desc: 'Previous slide' },
+      { keys: ['→', '↓', 'Space'],        desc: 'Next reveal or slide' },
+      { keys: ['←', '↑', 'Backspace'],    desc: 'Previous reveal or slide' },
       { keys: ['Home'],                   desc: 'First slide' },
       { keys: ['End'],                    desc: 'Last slide' },
       { keys: ['O'],                      desc: 'Overview grid' },
@@ -1767,11 +1887,11 @@ ${autoFullscreen ? `<div id="fs-hint">
         break;
       case 'Home':
         e.preventDefault();
-        showSlide(0, 'backward');
+        showSlide(0, 'backward', 'start');
         break;
       case 'End':
         e.preventDefault();
-        showSlide(total - 1, 'forward');
+        showSlide(total - 1, 'forward', 'end');
         break;
       case 'f':
       case 'F':
@@ -1893,8 +2013,8 @@ ${autoFullscreen ? `<div id="fs-hint">
   try { wantsPrint = new URLSearchParams(location.search).has('print'); } catch (e) {}
   if (wantsPrint) {
     var openPrint = function () { setTimeout(function () { window.print(); }, 350); };
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(openPrint, openPrint);
-    else window.addEventListener('load', openPrint);
+    var fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    Promise.all([richReady, fontsReady]).then(openPrint, openPrint);
   }
 
   // ── Init ─────────────────────────────────────────────────────────────

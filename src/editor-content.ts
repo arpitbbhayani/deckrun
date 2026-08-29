@@ -26,6 +26,7 @@ export const SNIPPET_GROUPS = [
   "Text",
   "Lists & tables",
   "Code",
+  "Math & diagrams",
   "Images",
   "Embeds",
   "Actions",
@@ -66,6 +67,23 @@ export const SNIPPETS: Snippet[] = [
     hint: "Stripped from the slide and the PDF. Shown under the preview while you write.",
     syntax: '<!-- notes: what to say here -->',
     insert: "\n<!-- notes: {caret} -->\n",
+  },
+  {
+    id: "reveal-item",
+    group: "Slides",
+    label: "Reveal step",
+    hint: "Add the marker to a bullet or paragraph. Advance reveals it before changing slides.",
+    syntax: "- next point {reveal}",
+    insert: "{sel} {reveal}",
+  },
+  {
+    id: "reveal-block",
+    group: "Slides",
+    label: "Reveal next block",
+    hint: "A marker on its own line reveals the equation, code block, diagram, or paragraph after it.",
+    syntax: "{reveal}\\n```mermaid",
+    insert: "{reveal}\n{caret}",
+    block: true,
   },
 
   // ── Text ─────────────────────────────────────────────────────────────────
@@ -242,6 +260,43 @@ export const SNIPPETS: Snippet[] = [
     block: true,
   },
 
+  // ── Math & diagrams ─────────────────────────────────────────────────────
+  {
+    id: "math-inline",
+    group: "Math & diagrams",
+    label: "Inline math",
+    hint: "KaTeX renders the expression in the surrounding sentence.",
+    syntax: "$E = mc^2$",
+    insert: "${caret}E = mc^2$",
+  },
+  {
+    id: "math-display",
+    group: "Math & diagrams",
+    label: "Display equation",
+    hint: "Double dollar delimiters center a standalone equation.",
+    syntax: "$$\\sum_{i=1}^{n} x_i$$",
+    insert: "$$\n\\sum_{i=1}^{n} x_i = \\frac{n(n+1)}{2}\n$$",
+    block: true,
+  },
+  {
+    id: "mermaid-flowchart",
+    group: "Math & diagrams",
+    label: "Mermaid flowchart",
+    hint: "Rendered in the preview, presentation, HTML export, and PDF.",
+    syntax: "```mermaid\ngraph LR",
+    insert: "```mermaid\ngraph LR\n  A[Input] --> B{Valid?}\n  B -->|yes| C[Process]\n  B -->|no| D[Reject]\n```",
+    block: true,
+  },
+  {
+    id: "mermaid-sequence",
+    group: "Math & diagrams",
+    label: "Mermaid sequence",
+    hint: "Use a sequence diagram for request, event, and protocol flows.",
+    syntax: "```mermaid\nsequenceDiagram",
+    insert: "```mermaid\nsequenceDiagram\n  Client->>API: Request\n  API->>Store: Read\n  Store-->>API: Result\n  API-->>Client: Response\n```",
+    block: true,
+  },
+
   // ── Images ───────────────────────────────────────────────────────────────
   {
     id: "img-inline",
@@ -354,6 +409,11 @@ export const TIPS: string[] = [
   "L turns on a laser pointer while presenting. D gives you a pen to draw with.",
   "C drops a blank canvas over the slide, for the diagram you did not plan.",
   "B blacks out the screen mid-talk. Press it again to come back.",
+  "Write $E = mc^2$ for inline KaTeX, or wrap a display equation in double dollars.",
+  "A fenced mermaid block becomes a diagram in the preview, presentation, and PDF.",
+  "Templates change composition without touching your Markdown; transitions are independent.",
+  "Add {reveal} to a bullet or put it before a block to step through a slide one idea at a time.",
+  "Run deckrun lint slides.md before presenting or in CI to catch common authoring mistakes.",
 ];
 
 /** Deck loaded on a first visit. Doubles as the feature tour. */
@@ -392,6 +452,32 @@ func (w *WAL) Append(e Entry) error {
 \`\`\`
 
 > the log is the source of truth, the data file is a materialized view of it
+
+---
+
+## Math and diagrams stay in Markdown
+
+The same source renders live and survives PDF export:
+
+$$
+T(n) = T(n/2) + O(n) = O(n)
+$$
+
+\`\`\`mermaid
+graph LR
+  Markdown --> Preview --> Present --> PDF
+\`\`\`
+
+---
+
+## Reveal one idea at a time
+
+- This point is visible when the slide opens
+- This one appears on the next advance {reveal}
+- Then this one {reveal}
+
+{reveal}
+> A marker on its own line reveals the whole block after it.
 
 ---
 

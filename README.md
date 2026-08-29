@@ -5,6 +5,10 @@ Write slides in Markdown or bring a self-contained HTML document, run a local se
 - **Two formats** - Markdown decks with slide-by-slide presentation, or self-contained HTML documents with continuous scrolling
 - **Live editor** - edit alongside a live preview, with autosave and a library of all your decks and docs
 - **14 themes** - unique palettes, typography, animated backdrops, four type sizes, and customizable heading and body fonts
+- **Templates and motion** - four composition templates and five transitions, switchable without touching the Markdown
+- **Technical content** - KaTeX equations and Mermaid diagrams in preview, presentation, HTML, and PDF
+- **Incremental reveals** - step through bullets, prose, equations, code, or diagrams without duplicating slides
+- **Deck linting** - catch empty slides, broken fences/math, dense content, image issues, and invalid reveal markers locally or in CI
 - **Presenter tools** - laser pointer, drawing pen, blank canvas, blackout mode, and `?` for shortcuts
 - **Export** - Markdown, HTML, headless-rendered PDF, or a standalone presenter-ready HTML page
 - **Local-first** - binds only to `127.0.0.1`; nothing is uploaded, and your work stays in browser local storage until export
@@ -63,9 +67,18 @@ deckrun slides.md --theme paper --size xl
 # Or set the two faces yourself
 deckrun slides.md --theme tokyo --head-font playfair --body-font lora
 
+# Recompose the same Markdown and choose how slides move
+deckrun slides.md --template editorial --transition fade
+
+# Check one or more decks before presenting or committing them
+deckrun lint slides.md
+deckrun lint talks/*.md --format json
+
 deckrun --list-themes
 deckrun --list-sizes
 deckrun --list-fonts
+deckrun --list-templates
+deckrun --list-transitions
 ```
 
 On start, the CLI prints the slide count and the local URL:
@@ -97,15 +110,38 @@ The server binds to `127.0.0.1` only, so the deck is never exposed on the networ
 | `--size <name>`       | `m`     | Type size: `s`, `m`, `l`, or `xl`                       |
 | `--head-font <name>`  |         | Override the theme's heading and title face             |
 | `--body-font <name>`  |         | Override the theme's body face                          |
+| `--template <name>`   | `classic` | Composition: `classic`, `minimal`, `editorial`, or `spotlight` |
+| `--transition <name>` | `slide` | Motion: `slide`, `fade`, `zoom`, `lift`, or `none`       |
 | `--list-themes`       |         | Print every theme with its mood and blurb, then exit    |
 | `--list-sizes`        |         | Print every type size with what it is for, then exit    |
 | `--list-fonts`        |         | Print every face and its kind, then exit                |
+| `--list-templates`    |         | Print every composition template, then exit             |
+| `--list-transitions`  |         | Print every slide transition, then exit                 |
 | `-v, --version`       |         | Print the version number                               |
 | `-h, --help`          |         | Print help for the command                             |
 
 An unknown `--theme`, `--size`, or font is an error rather than a silent fallback, so a typo does not quietly hand you the default. `dark` and `light` still name the two original palettes. In the editor, `--theme` and `--size` set the starting look and `Cmd Shift L` opens the picker to change either one live.
 
 `--size`, `--head-font`, and `--body-font` apply to Markdown decks only. An HTML doc brings its own typography; passing any of them alongside an `.html`/`.htm` file prints a notice and is otherwise ignored.
+
+### `deckrun lint`
+
+The lint command performs fast, browser-free checks and reports the source
+line, slide number, severity, and rule id for each problem:
+
+```bash
+deckrun lint slides.md
+deckrun lint intro.md architecture.md
+deckrun lint slides.md --format json
+deckrun lint slides.md --max-warnings -1
+```
+
+It catches empty decks/slides, unclosed code fences and display math, untagged
+code fences, excessive prose or bullets, overly long headings, missing image
+alt text, invalid image opacity, and malformed or excessive reveal markers.
+Errors fail the command. Warnings also fail by default, making the command
+useful in CI; `--max-warnings N` changes that threshold and `-1` allows any
+number of warnings. Pass `-` as the file to lint standard input.
 
 ## The editor
 
@@ -123,7 +159,7 @@ The preview is not an approximation. Every keystroke is parsed by the same parse
 ### The two bars
 
 The top bar is for decisions: the deck name, the library, and then everything
-that changes what the deck looks like — `theme`, `font`, and the `S M L XL`
+that changes what the deck looks like — `template`, `theme`, `font`, and the `S M L XL`
 type size — with `guide`, `insert`, `new`, `export`, and `present` beside
 them.
 
@@ -158,6 +194,12 @@ Three surfaces exist so you never have to remember the syntax:
 - Contextual nudges: a prompt appears in the editor when the document suggests one. A slide that overflows its own canvas, a code fence with no language tag, an image that could be a split layout, a deck with no speaker notes, a slide carrying too many bullets. Each nudge inserts the fix or dismisses for good.
 
 A tip line in the status bar cycles through the rest.
+
+The Markdown start screen also carries template and transition choices. Pick
+them before creating or importing a deck, or use the `template` menu later.
+Templates are CSS compositions rather than source transformations, so changing
+one after the deck is finished immediately recomposes every slide while the
+Markdown remains byte-for-byte unchanged.
 
 ### Images
 
@@ -219,7 +261,7 @@ With no such browser on the machine, the editor falls back to opening the deck w
 
 The HTML export is the same page `deckrun` serves: styles and the navigation runtime are inlined, so it opens from disk, and keyboard, touch, overview, and fullscreen all still work. Two things do not travel with it, since it is one file rather than a bundle:
 
-- Fonts and syntax highlighting load from a CDN, so a viewer needs a connection to see them exactly as you do. The theme's colors and its backdrop are inline, so those hold up offline.
+- Fonts, syntax highlighting, KaTeX, and Mermaid load from pinned CDNs in a standalone export, so a viewer needs a connection to see them exactly as you do. The theme, template, transitions, colors, and backdrop are inline.
 - Images and videos referenced by path stay on your disk. Ship them alongside, or host the page where those paths resolve.
 
 An HTML doc's PDF is not paginated to 16:9 slides — it prints the doc's own `@page`/print CSS (or Chrome's defaults if it has none), exactly as if you had opened the file yourself and pressed print. There is no presenter chrome to strip, since the doc is printed on its own, without the tool-belt wrapper.
@@ -369,6 +411,67 @@ function parseSlides(markdown: string): Slide[] {
 ````
 
 Code blocks scroll horizontally when a line is too long, so long lines never reflow mid-presentation.
+
+### Math and Mermaid diagrams
+
+KaTeX renders inline math with single dollar delimiters and display math with
+double dollars. The bracket forms `\(...\)` and `\[...\]` work too:
+
+```markdown
+The amortized cost is $O(1)$ per operation.
+
+$$
+T(n) = T(n/2) + O(n) = O(n)
+$$
+```
+
+Mermaid diagrams use an ordinary language-tagged fence:
+
+````markdown
+```mermaid
+sequenceDiagram
+  Client->>API: Request
+  API->>Store: Read
+  Store-->>API: Result
+  API-->>Client: Response
+```
+````
+
+Both render in the live preview, a presented deck, standalone HTML, and PDF.
+The editor waits for the equation or diagram before measuring slide overflow,
+and PDF rendering uses the copies installed with deckrun rather than waiting on
+a CDN. Invalid source stays visible as an error on the slide instead of
+silently disappearing.
+
+### Incremental reveals
+
+Append `{reveal}` to a bullet or another Markdown block. Forward navigation
+reveals each marked block before advancing to the next slide; backward
+navigation hides revealed blocks before returning to the previous slide:
+
+```markdown
+## Three stages
+
+- Parse the Markdown
+- Build semantic HTML {reveal}
+- Render the final slide {reveal}
+```
+
+Put the marker on its own line to reveal the entire block after it. This works
+for paragraphs, blockquotes, equations, code fences, and Mermaid diagrams:
+
+````markdown
+{reveal}
+```mermaid
+graph LR
+  Markdown --> HTML --> PDF
+```
+````
+
+The editor preview and grid show the complete slide so you can author and
+detect overflow against the final state. Overview thumbnails and PDF also show
+all content; reveals are interactive only while presenting. Reduced-motion
+preferences keep the reveal but remove its movement.
 
 ### Embeds and inline HTML
 
@@ -561,6 +664,32 @@ Picking does not close the menu, because choosing a heading and then a body is
 one decision. Both are remembered per browser and travel into the deck you
 present and the PDF you export.
 
+### Templates and transitions
+
+Templates compose with themes. A theme owns color and type; a template owns
+spacing, alignment, rules, image treatment, and the overall reading rhythm:
+
+| id          | composition                                                        |
+| ----------- | ------------------------------------------------------------------ |
+| `classic`   | The original balanced deckrun layout                              |
+| `minimal`   | Quiet surfaces, wider margins, fewer decorative treatments        |
+| `editorial` | Strong rules and magazine-like reading rhythm                     |
+| `spotlight` | Centered, high-impact composition for concise keynote slides       |
+
+Pick one on the editor start screen or switch it later from the `template`
+menu. Switching only changes the root `data-template` attribute and CSS, so an
+existing deck transforms instantly and its Markdown is untouched.
+
+The same menu carries five independent transitions: `slide`, `fade`, `zoom`,
+`lift`, and `none`. `prefers-reduced-motion` suppresses their spatial motion,
+and print/PDF disables them entirely.
+
+```bash
+deckrun slides.md --template spotlight --transition zoom
+deckrun --list-templates
+deckrun --list-transitions
+```
+
 ### Type and motion
 
 Slides also assemble rather than appear: each top-level block on a slide rises
@@ -623,8 +752,8 @@ built deck, so overriding a single value in a fork stays a one-line change.
 
 | Key                                  | Action                                   |
 | ------------------------------------ | ---------------------------------------- |
-| `Right`, `Down`, `Space`, `PageDown` | Advance to the next slide                 |
-| `Left`, `Up`, `Backspace`, `PageUp`  | Return to the previous slide              |
+| `Right`, `Down`, `Space`, `PageDown` | Advance to the next reveal or slide       |
+| `Left`, `Up`, `Backspace`, `PageUp`  | Return to the previous reveal or slide    |
 | `Home`                               | Jump to the first slide                   |
 | `End`                                | Jump to the last slide                    |
 | `O`                                  | Toggle the overview grid                  |
@@ -708,6 +837,7 @@ From the editor, press `Cmd Shift S` or pick PDF from the `export` menu, and a f
 - Slides are sized in absolute units for print. Viewport units resolve against the page box in paged media, which is why a deck laid out in `vw` and `vh` came out as clipped portrait pages.
 - The HUD, arrows, overview, cursor, pets, keyboard hint, fullscreen prompt, annotation canvas, laser pointer, blackout, and controls overlay are all hidden.
 - Speaker notes are stripped at parse time, so they never reach the PDF.
+- Incremental fragments are fully revealed, so printed and exported slides never omit content.
 
 Loading any deck with `?print=1` on the URL opens the print dialog once fonts and highlighting have settled. That is the editor's fallback when there is no browser to drive, and it works on a file-backed deck too:
 
@@ -724,7 +854,10 @@ deckrun slides.md --no-open
 - Requests that resolve outside the Markdown file's directory return `403`. Missing files return `404`.
 - If the requested port is taken, the server falls back to a random free port and prints the URL it settled on.
 
-Google Fonts, Highlight.js, and the pet sprites load from CDNs, so a first run needs network access. Once the browser has cached them, the deck renders offline apart from the pets.
+KaTeX and Mermaid are served from the copies installed with deckrun, which
+keeps live preview and PDF rendering independent of the network. Google Fonts,
+Highlight.js, and the pet sprites still load from CDNs, so a first run needs
+network access for those visual extras.
 
 ## Generating decks and docs with Claude Code
 
@@ -750,7 +883,8 @@ deckrun
 
 The skill is a personal Claude Code skill and is not bundled with this package. Add it under `~/.claude/skills/blog-to-slides/SKILL.md` to make it available across projects.
 
-One caveat: the skill emits LaTeX for formulas, which `deckrun` does not render. Rewrite formulas as inline code or a code block, or drop them.
+Formulas emitted as dollar-delimited LaTeX render with KaTeX. Mermaid fences
+from generated Markdown render as diagrams as well.
 
 ### HTML documents
 
@@ -857,9 +991,7 @@ Worth knowing before you plan a talk around them:
 
 - No presenter view while presenting. The editor shows the notes for the slide you are on, but the presented deck has no second window, no next-slide peek, and no timer.
 - No live reload in file mode. Editing the file needs a restart of the CLI. The editor previews as you type, so use it for the writing loop.
-- No LaTeX or math rendering, and no Mermaid diagrams. Use fenced code blocks or ASCII diagrams.
-- No incremental reveal of bullets within a slide.
-- No slide-level transition or layout overrides beyond the image directives.
+- Templates and transitions currently apply to the whole deck rather than one slide at a time.
 - No `file://` mode. The deck always runs through the local HTTP server.
 - The editor does not upload or embed images. It stores Markdown, and images load by path from the folder you launched in.
 - The library lives in one browser and one origin. It does not sync between browsers or machines, so download anything you cannot afford to lose.
@@ -887,6 +1019,10 @@ The source:
 - `src/index.ts` is the CLI, the HTTP server, the editor routes, and port selection
 - `src/parser.ts` splits slides, extracts notes, and resolves image directives
 - `src/themes.ts` is the theme registry and the type scale: palettes, font catalog, backdrop patterns, size presets, and the CSS they all emit
+- `src/presentation-options.ts` is the composition-template and transition registry
+- `src/fragments.ts` contains incremental-reveal styles and DOM preparation shared by preview and presentation
+- `src/lint.ts` implements the static deck authoring rules behind `deckrun lint`
+- `src/rich-content.ts` detects and renders KaTeX and Mermaid content, with a shared readiness signal
 - `src/generate.ts` holds the slide CSS, the presenter chrome, and the deck runtime
 - `src/preview.ts` is the editor's preview iframe, sharing the slide CSS with the deck
 - `src/editor.ts` is the editor page: highlighting, palette, guide, nudges, autosave

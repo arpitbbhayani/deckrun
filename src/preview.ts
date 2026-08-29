@@ -17,6 +17,22 @@ import {
   type SizeName,
   type ThemeName,
 } from "./themes.js";
+import {
+  DEFAULT_TEMPLATE,
+  DEFAULT_TRANSITION,
+  resolveTemplateName,
+  resolveTransitionName,
+  TEMPLATE_CSS,
+  TRANSITION_CSS,
+  type TemplateName,
+  type TransitionName,
+} from "./presentation-options.js";
+import {
+  RICH_CONTENT_CSS,
+  RICH_CONTENT_RUNTIME,
+  richContentHead,
+} from "./rich-content.js";
+import { FRAGMENT_CSS, FRAGMENT_RUNTIME } from "./fragments.js";
 
 /** Virtual viewport the preview renders at, so `vw` sizing matches a projector. */
 export const PREVIEW_WIDTH = 1600;
@@ -30,15 +46,19 @@ export const PREVIEW_HEIGHT = 900;
 export function generatePreviewHtml(
   initialTheme: ThemeName = DEFAULT_THEME,
   initialSize: SizeName = DEFAULT_SIZE,
-  fonts: { head?: string | null; body?: string | null } = {}
+  fonts: { head?: string | null; body?: string | null } = {},
+  initialTemplate: TemplateName = DEFAULT_TEMPLATE,
+  initialTransition: TransitionName = DEFAULT_TRANSITION
 ): string {
   const size = resolveSizeName(initialSize);
+  const template = resolveTemplateName(initialTemplate);
+  const transition = resolveTransitionName(initialTransition);
   const head = findFont(fonts.head);
   const body = findFont(fonts.body);
   const fontAttrs =
     (head ? ` data-head="${head}"` : "") + (body ? ` data-body="${body}"` : "");
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${initialTheme}" data-decor="${decorOf(initialTheme)}" data-size="${size}"${fontAttrs}>
+<html lang="en" data-theme="${initialTheme}" data-decor="${decorOf(initialTheme)}" data-size="${size}" data-template="${template}" data-transition="${transition}"${fontAttrs}>
 <head>
   <meta charset="UTF-8">
   <title>preview · deckrun</title>
@@ -47,6 +67,7 @@ export function generatePreviewHtml(
   <link href="${googleFontsHref()}" rel="stylesheet">
   <link rel="stylesheet" id="hljs-theme" href="${hljsHref(initialTheme)}">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  ${richContentHead({ math: true, mermaid: true }, "local")}
   <style>
 ${RESET_CSS}
 
@@ -57,6 +78,14 @@ ${sizeSwitchableCss()}
 ${fontOverrideCss()}
 
 ${SLIDE_CSS}
+
+${TEMPLATE_CSS}
+
+${TRANSITION_CSS}
+
+${FRAGMENT_CSS}
+
+${RICH_CONTENT_CSS}
 
 ${DECOR_CSS}
 
@@ -143,6 +172,11 @@ body.is-empty #pv-empty { display: flex; }
 <div id="presentation"></div>
 <div id="pv-empty">nothing to preview yet</div>
 <script>
+${FRAGMENT_RUNTIME}
+
+${RICH_CONTENT_RUNTIME}
+</script>
+<script>
 (function () {
   'use strict';
 
@@ -168,7 +202,7 @@ body.is-empty #pv-empty { display: flex; }
 
   function highlight(root) {
     if (!window.hljs) return;
-    var blocks = root.querySelectorAll('pre code');
+    var blocks = root.querySelectorAll('pre code:not(.language-mermaid):not(.lang-mermaid)');
     for (var i = 0; i < blocks.length; i++) {
       if (!blocks[i].dataset.highlighted) {
         try { window.hljs.highlightElement(blocks[i]); } catch (e) {}
@@ -181,7 +215,19 @@ body.is-empty #pv-empty { display: flex; }
     if (mode !== 'single') return;
     var content = stage.querySelector('.slide__content');
     var over = false;
-    if (content) over = content.scrollHeight - content.clientHeight > 6;
+    if (content) {
+      over = content.scrollHeight - content.clientHeight > 6 ||
+        content.scrollWidth - content.clientWidth > 6;
+
+      // KaTeX display equations and Mermaid hosts deliberately hide their own
+      // overflow to keep a projected slide tidy. Inspect them separately so a
+      // clipped formula or diagram still triggers the editor's overflow nudge.
+      var rich = content.querySelectorAll('.katex-display, .mermaid');
+      for (var i = 0; !over && i < rich.length; i++) {
+        over = rich[i].scrollHeight - rich[i].clientHeight > 6 ||
+          rich[i].scrollWidth - rich[i].clientWidth > 6;
+      }
+    }
     send({ type: 'overflow', index: index, overflow: over });
   }
 
@@ -190,8 +236,10 @@ body.is-empty #pv-empty { display: flex; }
     stage.innerHTML = slides[index] || '';
     var el = stage.querySelector('.slide');
     if (el) el.classList.add('is-active');
+    if (window.deckrunPrepareFragments) window.deckrunPrepareFragments(stage, true);
     highlight(stage);
-    requestAnimationFrame(reportOverflow);
+    var rich = window.deckrunRenderRichContent ? window.deckrunRenderRichContent(stage) : Promise.resolve();
+    rich.then(function () { requestAnimationFrame(reportOverflow); });
   }
 
   function renderGrid() {
@@ -219,7 +267,10 @@ body.is-empty #pv-empty { display: flex; }
     });
     stage.appendChild(frag);
     scaleThumbs();
+    if (window.deckrunPrepareFragments) window.deckrunPrepareFragments(stage, true);
     highlight(stage);
+    var rich = window.deckrunRenderRichContent ? window.deckrunRenderRichContent(stage) : Promise.resolve();
+    rich.then(scaleThumbs);
   }
 
   function scaleThumbs() {
@@ -354,9 +405,11 @@ body.is-empty #pv-empty { display: flex; }
       // theme, which delete does and an assignment of '' would not.
       applyFont('head', m.head);
       applyFont('body', m.body);
+      if (m.template) document.documentElement.dataset.template = m.template;
+      if (m.transition) document.documentElement.dataset.transition = m.transition;
       // Type size and face both change how tall a slide's content runs, so the
       // editor's overflow warning has to be re-measured against them.
-      requestAnimationFrame(reportOverflow);
+      render();
     } else if (m.type === 'index') {
       index = m.index;
       if (mode === 'grid') {

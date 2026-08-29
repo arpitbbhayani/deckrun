@@ -176,7 +176,11 @@ export async function renderPdf(url: string, browser: string): Promise<Buffer> {
     "--mute-audio",
     // Never touch the browser profile the person is actually using.
     `--user-data-dir=${join(dir, "profile")}`,
-    "--virtual-time-budget=5000",
+    // Mermaid performs an asynchronous layout pass after its local script has
+    // loaded. Give that pass room to settle and flush every compositor stage
+    // before Chrome snapshots the pages.
+    "--virtual-time-budget=10000",
+    "--run-all-compositor-stages-before-draw",
     // Header/footer flag names differ across versions; unknown switches are ignored.
     "--no-pdf-header-footer",
     "--print-to-pdf-no-header",

@@ -103,10 +103,26 @@ The text sits on top with full readability.
 
 ---
 
+## Math and Mermaid
+
+KaTeX keeps formulas in the Markdown:
+
+$$
+T(n) = T(n/2) + O(n) = O(n)
+$$
+
+```mermaid
+graph LR
+  Markdown --> Preview --> Present --> PDF
+```
+
+---
+
 # Thank you
 
+{reveal}
 ```bash
 npx present slides.md
 ```
 
-Made with ❤️ and too much coffee
+Made with ❤️ and too much coffee {reveal}

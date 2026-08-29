@@ -11,11 +11,14 @@
   ],
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "test": "npm run build && node --test"
   },
   "dependencies": {
     "commander": "^11.1.0",
+    "katex": "^0.18.4",
     "marked": "^9.1.6",
+    "mermaid": "^11.17.2",
     "open": "^9.1.0"
   },
   "devDependencies": {
