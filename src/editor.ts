@@ -20,11 +20,23 @@ import {
   WELCOME_DECK,
 } from "./editor-content.js";
 import { PREVIEW_WIDTH, PREVIEW_HEIGHT } from "./preview.js";
+import {
+  DEFAULT_TEMPLATE,
+  DEFAULT_TRANSITION,
+  resolveTemplateName,
+  resolveTransitionName,
+  templateSummaries,
+  transitionSummaries,
+  type TemplateName,
+  type TransitionName,
+} from "./presentation-options.js";
 
 function bootstrapJson(
   theme: ThemeName,
   size: SizeName,
-  fonts: { head: string | null; body: string | null }
+  fonts: { head: string | null; body: string | null },
+  template: TemplateName,
+  transition: TransitionName
 ): string {
   const payload = {
     theme,
@@ -33,6 +45,10 @@ function bootstrapJson(
     sizes: sizeSummaries(),
     fonts,
     faces: fontSummaries(),
+    template,
+    templates: templateSummaries(),
+    transition,
+    transitions: transitionSummaries(),
     width: PREVIEW_WIDTH,
     height: PREVIEW_HEIGHT,
     groups: SNIPPET_GROUPS,
@@ -48,12 +64,16 @@ function bootstrapJson(
 export function generateEditorHtml(
   theme: ThemeName = DEFAULT_THEME,
   sizeInput: SizeName = DEFAULT_SIZE,
-  fontInput: { head?: string | null; body?: string | null } = {}
+  fontInput: { head?: string | null; body?: string | null } = {},
+  templateInput: TemplateName = DEFAULT_TEMPLATE,
+  transitionInput: TransitionName = DEFAULT_TRANSITION
 ): string {
   const size = resolveSizeName(sizeInput);
+  const template = resolveTemplateName(templateInput);
+  const transition = resolveTransitionName(transitionInput);
   const fonts = { head: findFont(fontInput.head), body: findFont(fontInput.body) };
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}">
+<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-size="${size}" data-template="${template}" data-transition="${transition}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -422,6 +442,22 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--overlay1);
 }
 
+#overflow-badge {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border: 1px solid var(--yellow);
+  border-radius: 999px;
+  color: var(--yellow);
+  background: var(--surface-soft);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+#overflow-badge.is-on { display: inline-flex; }
+
 /* ── Dropdown menu ────────────────────────────────────────────────────── */
 .menu { position: relative; display: inline-flex; }
 .menu__chev { font-size: 9px; color: var(--overlay0); }
@@ -470,6 +506,21 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--overlay0);
   white-space: nowrap;
 }
+
+.menu__pop--template { min-width: 390px; padding: 7px; }
+.menu-section + .menu-section { margin-top: 6px; padding-top: 7px; border-top: 1px solid var(--surface0); }
+.menu-section__title {
+  padding: 2px 10px 5px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--overlay0);
+}
+.menu__pop--template button.is-on {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+}
+.menu__pop--template button.is-on .menu__name { color: var(--accent); }
 
 .seg { display: flex; border: 1px solid var(--surface0); border-radius: 7px; overflow: hidden; }
 .seg button { font-size: 11px; padding: 3px 10px; color: var(--overlay1); }
@@ -1055,7 +1106,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 
 [data-doc-kind="html"] #btn-guide,
-[data-doc-kind="html"] #btn-palette {
+[data-doc-kind="html"] #btn-palette,
+[data-doc-kind="html"] #template-wrap {
   display: none !important;
 }
 
@@ -1107,6 +1159,30 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   flex: none;
 }
 .start-card__acts button:hover { border-color: var(--accent); color: var(--text); }
+
+.start-options {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--surface0);
+}
+.start-options__row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.start-options__label {
+  flex: 0 0 72px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--overlay0);
+}
+.start-options__choices { display: flex; flex-wrap: wrap; gap: 5px; }
+.start-choice {
+  padding: 4px 8px;
+  font-size: 10.5px;
+  color: var(--subtext0);
+  border: 1px solid var(--surface1);
+  border-radius: 6px;
+}
+.start-choice:hover { color: var(--text); border-color: var(--accent); }
+.start-choice.is-on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 
 .start-card__url { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; }
 .start-card__url input {
@@ -1163,6 +1239,21 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         </button>
       </div>
     </span>
+    <span class="menu" id="template-wrap">
+      <button class="btn" id="btn-template" aria-haspopup="true" aria-expanded="false" title="Composition template and slide transition">
+        <span id="template-label">template</span> <span class="menu__chev">&#9662;</span>
+      </button>
+      <div class="menu__pop menu__pop--template" id="template-menu">
+        <div class="menu-section">
+          <div class="menu-section__title">template</div>
+          <div id="template-list"></div>
+        </div>
+        <div class="menu-section">
+          <div class="menu-section__title">transition</div>
+          <div id="transition-list"></div>
+        </div>
+      </div>
+    </span>
     <button class="btn" id="btn-theme" title="Pick a theme">
       <span class="th-dot" id="theme-dot"></span>
       <span id="theme-label">theme</span>
@@ -1208,6 +1299,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         <button class="step" id="btn-prev" title="Previous slide">&#8592;</button>
         <span id="prev-count">slide 0 / 0</span>
         <button class="step" id="btn-next" title="Next slide">&#8594;</button>
+        <span id="overflow-badge" title="This slide is clipped. Shorten it or split it with three dashes.">overflow</span>
         <span class="spacer"></span>
         <span id="prev-scale"></span>
         <div class="seg">
@@ -1317,6 +1409,16 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
           <button id="start-md-blank">start blank</button>
           <button id="start-md-upload">upload .md</button>
         </span>
+        <div class="start-options">
+          <div class="start-options__row">
+            <span class="start-options__label">template</span>
+            <span class="start-options__choices" id="start-template-list"></span>
+          </div>
+          <div class="start-options__row">
+            <span class="start-options__label">transition</span>
+            <span class="start-options__choices" id="start-transition-list"></span>
+          </div>
+        </div>
       </div>
       <div class="start-card" id="start-html-card">
         <span class="start-card__title">HTML document</span>
@@ -1340,7 +1442,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 <div id="toasts"></div>
 <input type="file" id="file-any" accept=".md,.markdown,text/markdown,text/plain,.html,.htm,text/html" hidden>
 
-<script type="application/json" id="bootstrap">${bootstrapJson(theme, size, fonts)}</script>
+<script type="application/json" id="bootstrap">${bootstrapJson(theme, size, fonts, template, transition)}</script>
 <script>
 (function () {
   'use strict';
@@ -1357,6 +1459,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     size:    'deckrun.size.v1',
     head:    'deckrun.font.head.v1',
     body:    'deckrun.font.body.v1',
+    template:'deckrun.template.v1',
+    transition:'deckrun.transition.v1',
     split:   'deckrun.split.v1',
     mode:    'deckrun.mode.v1',
     nudge:   'deckrun.nudges.v1',
@@ -1441,11 +1545,20 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   /** Returns the new deck's id, or null if this browser refused to store it. */
-  function createDeck(name, content, kind) {
+  function createDeck(name, content, kind, template, transition) {
     var id = newDeckId();
     if (!lsSet(K.deck + id, content)) return null;
     var list = loadIndex();
-    list.unshift({ id: id, name: name || 'untitled', kind: kind || 'markdown', slides: 0, chars: content.length, at: Date.now() });
+    list.unshift({
+      id: id,
+      name: name || 'untitled',
+      kind: kind || 'markdown',
+      slides: 0,
+      chars: content.length,
+      template: template || (typeof state !== 'undefined' && state.template ? state.template : D.template),
+      transition: transition || (typeof state !== 'undefined' && state.transition ? state.transition : D.transition),
+      at: Date.now()
+    });
     if (!saveIndex(list)) { lsDel(K.deck + id); return null; }
     return id;
   }
@@ -1489,6 +1602,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       if (list[i].id === state.deckId) {
         list[i].name = $('docname').value.trim() || 'untitled';
         list[i].kind = state.kind;
+        list[i].template = state.template;
+        list[i].transition = state.transition;
         if (state.kind === 'html') {
           list[i].slides = 0;
           list[i].chars = srcHtml.value.length;
@@ -1555,6 +1670,22 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     return SIZE_BY_ID[id] ? id : (SIZE_BY_ID[D.size] ? D.size : 'm');
   }
 
+  var TEMPLATES = D.templates;
+  var TEMPLATE_BY_ID = {};
+  TEMPLATES.forEach(function (item) { TEMPLATE_BY_ID[item.id] = item; });
+
+  function pickTemplate(id) {
+    return TEMPLATE_BY_ID[id] ? id : (TEMPLATE_BY_ID[D.template] ? D.template : 'classic');
+  }
+
+  var TRANSITIONS = D.transitions;
+  var TRANSITION_BY_ID = {};
+  TRANSITIONS.forEach(function (item) { TRANSITION_BY_ID[item.id] = item; });
+
+  function pickTransition(id) {
+    return TRANSITION_BY_ID[id] ? id : (TRANSITION_BY_ID[D.transition] ? D.transition : 'slide');
+  }
+
   var FACES = D.faces;
   var FACE_BY_ID = {};
   FACES.forEach(function (f) { FACE_BY_ID[f.id] = f; });
@@ -1588,6 +1719,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     size: pickSize(lsGet(K.size, D.size)),
     head: pickFont(lsGet(K.head, D.fonts.head)),
     body: pickFont(lsGet(K.body, D.fonts.body)),
+    template: pickTemplate(lsGet(K.template, D.template)),
+    transition: pickTransition(lsGet(K.transition, D.transition)),
     frameReady: false,
     overflow: {},
     dismissed: {},
@@ -1879,6 +2012,10 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     elCount.textContent = 'slide ' + (n ? state.index + 1 : 0) + ' / ' + n;
     $('btn-prev').disabled = state.index <= 0;
     $('btn-next').disabled = state.index >= n - 1;
+    $('overflow-badge').classList.toggle(
+      'is-on',
+      state.mode === 'single' && !!state.overflow[state.index]
+    );
 
     var note = state.notes[state.index];
     if (note) { elNotesText.textContent = note; elNotes.classList.add('is-on'); }
@@ -2381,7 +2518,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   function exportHtml() {
     if (isEmpty()) { toast('Nothing to export yet.', 'warn'); return; }
     var builder = state.kind === 'html' ? buildHtmlDoc : buildDeck;
-    builder(false)
+    builder(false, true)
       .then(function (data) { return fetch(data.path); })
       .then(function (r) {
         if (!r.ok) throw new Error('server said ' + r.status);
@@ -2412,7 +2549,16 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     var pdfUrl = state.kind === 'html' ? '/__pdf-doc' : '/__pdf';
     var pdfBody = state.kind === 'html'
       ? { html: srcHtml.value, title: $('docname').value }
-      : { markdown: src.value, theme: state.theme, size: state.size, head: state.head, body: state.body, title: $('docname').value };
+      : {
+          markdown: src.value,
+          theme: state.theme,
+          size: state.size,
+          head: state.head,
+          body: state.body,
+          template: state.template,
+          transition: state.transition,
+          title: $('docname').value
+        };
 
     fetch(pdfUrl, {
       method: 'POST',
@@ -2469,7 +2615,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       });
   }
 
-  function buildDeck(forPrint) {
+  function buildDeck(forPrint, standalone) {
     return fetch('/__present', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2479,8 +2625,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         size: state.size,
         head: state.head,
         body: state.body,
+        template: state.template,
+        transition: state.transition,
         title: $('docname').value,
-        print: !!forPrint
+        print: !!forPrint,
+        standalone: !!standalone
       })
     }).then(function (r) {
       if (!r.ok) throw new Error('server said ' + r.status);
@@ -2549,6 +2698,30 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     paintSizeSeg();
   }
 
+  function setTemplate(next, remember) {
+    var id = pickTemplate(next);
+    state.template = id;
+    document.documentElement.dataset.template = id;
+    if (remember !== false) {
+      lsSet(K.template, id);
+      scheduleSave();
+    }
+    pushLook();
+    paintTemplateMenu();
+  }
+
+  function setTransition(next, remember) {
+    var id = pickTransition(next);
+    state.transition = id;
+    document.documentElement.dataset.transition = id;
+    if (remember !== false) {
+      lsSet(K.transition, id);
+      scheduleSave();
+    }
+    pushLook();
+    paintTemplateMenu();
+  }
+
   /**
    * Heading and body faces are chosen separately, and either can be handed
    * back to the theme by picking nothing. Passing null is what clears it.
@@ -2574,6 +2747,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         root.dataset.theme = state.theme;
         root.dataset.decor = decorOf(state.theme);
         root.dataset.size = state.size;
+        root.dataset.template = state.template;
+        root.dataset.transition = state.transition;
         if (state.head) root.dataset.head = state.head; else delete root.dataset.head;
         if (state.body) root.dataset.body = state.body; else delete root.dataset.body;
       }
@@ -2585,7 +2760,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
           theme: state.theme,
           size: state.size,
           head: state.head,
-          body: state.body
+          body: state.body,
+          template: state.template,
+          transition: state.transition
         }, '*');
       }
     } catch (e) {}
@@ -2598,10 +2775,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       theme: state.theme,
       size: state.size,
       head: state.head,
-      body: state.body
+      body: state.body,
+      template: state.template,
+      transition: state.transition
     });
     syncHtmlFrameTheme();
     paintThemeButton();
+    paintTemplateMenu();
   }
 
   function faceLabel(id) {
@@ -2663,6 +2843,45 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     var t = THEME_BY_ID[state.theme];
     $('theme-label').textContent = t ? t.label : 'theme';
     $('btn-theme').title = t ? t.label + ' — ' + t.blurb : 'Pick a theme';
+  }
+
+  function optionRow(kind, item) {
+    var b = document.createElement('button');
+    b.dataset[kind] = item.id;
+    var name = document.createElement('span');
+    name.className = 'menu__name';
+    name.textContent = item.label;
+    var hint = document.createElement('span');
+    hint.className = 'menu__hint';
+    hint.textContent = item.blurb;
+    b.appendChild(name);
+    b.appendChild(hint);
+    return b;
+  }
+
+  function buildTemplateMenu() {
+    var templateHost = $('template-list');
+    var transitionHost = $('transition-list');
+    templateHost.innerHTML = '';
+    transitionHost.innerHTML = '';
+    TEMPLATES.forEach(function (item) { templateHost.appendChild(optionRow('template', item)); });
+    TRANSITIONS.forEach(function (item) { transitionHost.appendChild(optionRow('transition', item)); });
+    paintTemplateMenu();
+  }
+
+  function paintTemplateMenu() {
+    var menu = $('template-menu');
+    if (!menu) return;
+    Array.prototype.forEach.call(menu.querySelectorAll('[data-template]'), function (b) {
+      b.classList.toggle('is-on', b.dataset.template === state.template);
+    });
+    Array.prototype.forEach.call(menu.querySelectorAll('[data-transition]'), function (b) {
+      b.classList.toggle('is-on', b.dataset.transition === state.transition);
+    });
+    var current = TEMPLATE_BY_ID[state.template];
+    $('template-label').textContent = current ? current.label : 'template';
+    $('btn-template').title = (current ? current.blurb : 'Composition template') +
+      ' · transition ' + state.transition;
   }
 
   // ── Theme picker ───────────────────────────────────────────────────────
@@ -2886,6 +3105,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     state.deckId = id;
     lsSet(K.current, id);
     setDocKind(meta.kind || 'markdown');
+    setTemplate(meta.template || state.template, true);
+    setTransition(meta.transition || state.transition, true);
     $('docname').value = meta.name;
     updateDocTitle();
     updateDeckCount();
@@ -3008,7 +3229,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       dupe.addEventListener('click', function (e) {
         e.stopPropagation();
         if (deck.id === state.deckId) { duplicateDeck(); renderLibrary(); return; }
-        var id = createDeck(uniqueName(deck.name + ' copy'), readDeck(deck.id), deck.kind || 'markdown');
+        var id = createDeck(
+          uniqueName(deck.name + ' copy'),
+          readDeck(deck.id),
+          deck.kind || 'markdown',
+          deck.template || state.template,
+          deck.transition || state.transition
+        );
         if (!id) { noRoom(); return; }
         updateDeckCount();
         renderLibrary();
@@ -3051,7 +3278,48 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   // ── Start screen ─────────────────────────────────────────────────────
   // Shown on a true first run, and whenever "new" is chosen explicitly from
   // the library — never on an ordinary launch that has a deck to resume.
+  var startTemplate = state.template;
+  var startTransition = state.transition;
+
+  function paintStartOptions() {
+    Array.prototype.forEach.call($('start-template-list').querySelectorAll('[data-template]'), function (b) {
+      b.classList.toggle('is-on', b.dataset.template === startTemplate);
+    });
+    Array.prototype.forEach.call($('start-transition-list').querySelectorAll('[data-transition]'), function (b) {
+      b.classList.toggle('is-on', b.dataset.transition === startTransition);
+    });
+  }
+
+  function buildStartOptions() {
+    var templateHost = $('start-template-list');
+    var transitionHost = $('start-transition-list');
+    templateHost.innerHTML = '';
+    transitionHost.innerHTML = '';
+    TEMPLATES.forEach(function (item) {
+      var b = document.createElement('button');
+      b.className = 'start-choice';
+      b.dataset.template = item.id;
+      b.textContent = item.label;
+      b.title = item.blurb;
+      b.addEventListener('click', function () { startTemplate = item.id; paintStartOptions(); });
+      templateHost.appendChild(b);
+    });
+    TRANSITIONS.forEach(function (item) {
+      var b = document.createElement('button');
+      b.className = 'start-choice';
+      b.dataset.transition = item.id;
+      b.textContent = item.label;
+      b.title = item.blurb;
+      b.addEventListener('click', function () { startTransition = item.id; paintStartOptions(); });
+      transitionHost.appendChild(b);
+    });
+    paintStartOptions();
+  }
+
   function showStartScreen() {
+    startTemplate = state.template;
+    startTransition = state.transition;
+    paintStartOptions();
     $('start-lib').classList.toggle('is-disabled', !loadIndex().length);
     $('screen-start').classList.add('is-on');
     updateDocTitle();
@@ -3070,7 +3338,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   function startNewMarkdown() {
-    var id = createDeck(uniqueName('untitled'), D.welcome, 'markdown');
+    setTemplate(startTemplate, true);
+    setTransition(startTransition, true);
+    var id = createDeck(uniqueName('untitled'), D.welcome, 'markdown', startTemplate, startTransition);
     hideStartScreenSilently();
     if (!id) {
       // Storage refuses even a first write: use the deck unsaved rather than
@@ -3135,7 +3405,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         var name = uniqueName(body.title || url.hostname);
         var kind = body.kind || (body.markdown ? 'markdown' : 'html');
         var content = kind === 'markdown' ? (body.markdown || body.content || '') : (body.html || body.content || '');
-        var id = createDeck(name, content, kind);
+        var id = createDeck(
+          name,
+          content,
+          kind,
+          kind === 'markdown' ? startTemplate : state.template,
+          kind === 'markdown' ? startTransition : state.transition
+        );
         if (!id) { noRoom(); return; }
         input.value = '';
         hideStartScreenSilently();
@@ -3261,13 +3537,19 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   });
 
   /** An opened file lands as a new deck, so nothing in the library is lost. */
-  function loadMarkdownFile(file) {
+  function loadMarkdownFile(file, chosenTemplate, chosenTransition) {
     var fr = new FileReader();
     fr.onload = function () {
       saveNow();
       var markdown = String(fr.result).replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');
       var name = uniqueName(file.name.replace(/\\.(md|markdown|txt)$/i, '') || 'untitled');
-      var id = createDeck(name, markdown, 'markdown');
+      var id = createDeck(
+        name,
+        markdown,
+        'markdown',
+        chosenTemplate || state.template,
+        chosenTransition || state.transition
+      );
       if (!id) { noRoom(); return; }
       hideStartScreenSilently();
       openDeck(id);
@@ -3297,7 +3579,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   $('file-any').addEventListener('change', function (e) {
     var f = e.target.files[0];
     if (f) {
-      if (/\\.(md|markdown|txt)$/i.test(f.name)) loadMarkdownFile(f);
+      var fromStart = $('screen-start').classList.contains('is-on');
+      if (/\\.(md|markdown|txt)$/i.test(f.name)) {
+        loadMarkdownFile(
+          f,
+          fromStart ? startTemplate : state.template,
+          fromStart ? startTransition : state.transition
+        );
+      }
       else if (/\\.html?$/i.test(f.name)) loadHtmlFile(f);
       else toast('Unrecognized file type.', 'warn');
     }
@@ -3382,6 +3671,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   bindMenu('btn-font', 'font-menu', function (btn) {
     setFont(btn.dataset.slot, btn.dataset.font || null, true);
   }, 'button[data-slot]');
+
+  // Template and transition compose, so the menu remains open while either
+  // choice is changed and the existing Markdown reflows immediately.
+  bindMenu('btn-template', 'template-menu', function (btn) {
+    if (btn.dataset.template) setTemplate(btn.dataset.template, true);
+    if (btn.dataset.transition) setTransition(btn.dataset.transition, true);
+  }, 'button[data-template], button[data-transition]');
 
   document.addEventListener('click', function (e) {
     if (openMenu && !openMenu.contains(e.target)) closeMenu();
@@ -3592,6 +3888,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     } else if (m.type === 'overflow') {
       var had = !!state.overflow[m.index];
       state.overflow[m.index] = m.overflow;
+      renderCounts();
       if (had !== m.overflow) evalNudges();
     }
   });
@@ -3609,8 +3906,12 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   document.documentElement.dataset.theme = state.theme;
   document.documentElement.dataset.decor = THEME_BY_ID[state.theme].decor;
+  document.documentElement.dataset.template = state.template;
+  document.documentElement.dataset.transition = state.transition;
   buildSizeSeg('topbar-size', false);
   buildFontMenu();
+  buildTemplateMenu();
+  buildStartOptions();
   paintSizeSeg();
   paintThemeButton();
   $('seg-single').classList.toggle('is-on', state.mode === 'single');

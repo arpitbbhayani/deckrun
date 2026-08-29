@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { readFile } from "fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { createRequire } from "module";
-import { resolve, dirname, basename, extname } from "path";
+import { resolve, dirname, basename, extname, join, isAbsolute, relative } from "path";
 import { Command } from "commander";
 import open from "open";
 import { parseSlides, type Slide } from "./parser.js";
@@ -27,6 +27,21 @@ import {
 import { generateEditorHtml } from "./editor.js";
 import { generatePreviewHtml } from "./preview.js";
 import { findBrowser, renderPdfSerial, PdfError } from "./pdf.js";
+import {
+  DEFAULT_TEMPLATE,
+  DEFAULT_TRANSITION,
+  findTemplate,
+  findTransition,
+  resolveTemplateName,
+  resolveTransitionName,
+  templateListing,
+  transitionListing,
+  type TemplateName,
+  type TransitionName,
+} from "./presentation-options.js";
+import { lintMarkdown, type LintIssue } from "./lint.js";
+
+const moduleRequire = createRequire(import.meta.url);
 
 const c = {
   reset:  "\x1b[0m",
@@ -40,8 +55,7 @@ const c = {
 
 function packageVersion(): string {
   try {
-    const require = createRequire(import.meta.url);
-    return require("../package.json").version as string;
+    return moduleRequire("../package.json").version as string;
   } catch {
     return "0.0.0";
   }
@@ -171,12 +185,33 @@ interface EditorMode {
   theme: ThemeName;
   size: SizeName;
   fonts: { head: string | null; body: string | null };
+  template: TemplateName;
+  transition: TransitionName;
   fullscreen: boolean;
   /** Filled in once the port is known, so PDF rendering can reach the deck. */
   origin?: string;
 }
 
 type Mode = DeckMode | EditorMode;
+
+/** Resolve bundled math/diagram assets installed with the npm package. */
+function vendorAsset(pathname: string): string | null {
+  const name = pathname.replace(/^\/__vendor\/?/, "");
+
+  if (name === "katex.min.css" || name === "katex.min.js" || name.startsWith("fonts/")) {
+    const katexDist = dirname(moduleRequire.resolve("katex"));
+    const target = resolve(katexDist, name);
+    const fromRoot = relative(katexDist, target);
+    return !isAbsolute(fromRoot) && !fromRoot.startsWith("..") ? target : null;
+  }
+
+  if (name === "mermaid.min.js") {
+    const mermaidDist = dirname(moduleRequire.resolve("mermaid"));
+    return join(mermaidDist, "mermaid.min.js");
+  }
+
+  return null;
+}
 
 /** Decks built from editor content, addressable so a new tab can load them. */
 const decks = new Map<number, string>();
@@ -218,7 +253,10 @@ async function handleEditorRoute(
   res: ServerResponse
 ): Promise<boolean> {
   if (pathname === "/__preview" && req.method === "GET") {
-    sendHtml(res, generatePreviewHtml(mode.theme, mode.size, mode.fonts));
+    sendHtml(
+      res,
+      generatePreviewHtml(mode.theme, mode.size, mode.fonts, mode.template, mode.transition)
+    );
     return true;
   }
 
@@ -242,6 +280,9 @@ async function handleEditorRoute(
       body?: string | null;
       title?: string;
       print?: boolean;
+      template?: string;
+      transition?: string;
+      standalone?: boolean;
     };
     const slides = parseSlides(body.markdown ?? "");
     if (slides.length === 0) {
@@ -251,6 +292,8 @@ async function handleEditorRoute(
     }
     const theme = resolveThemeName(body.theme);
     const size = resolveSizeName(body.size);
+    const template = resolveTemplateName(body.template);
+    const transition = resolveTransitionName(body.transition);
     const title = deckTitle(slides, body.title?.trim() || "deckrun");
     // A deck built for printing must not open behind a fullscreen prompt.
     const forPrint = body.print === true;
@@ -258,7 +301,7 @@ async function handleEditorRoute(
       generateHtml(slides, title, forPrint ? false : mode.fullscreen, theme, size, {
         head: body.head,
         body: body.body,
-      })
+      }, { template, transition, standalone: body.standalone === true })
     );
     sendJson(res, { path: forPrint ? `${path}&print=1` : path });
     return true;
@@ -272,6 +315,8 @@ async function handleEditorRoute(
       head?: string | null;
       body?: string | null;
       title?: string;
+      template?: string;
+      transition?: string;
     };
     const slides = parseSlides(body.markdown ?? "");
     if (slides.length === 0) {
@@ -296,9 +341,19 @@ async function handleEditorRoute(
 
     const theme = resolveThemeName(body.theme);
     const size = resolveSizeName(body.size);
+    const template = resolveTemplateName(body.template);
+    const transition = resolveTransitionName(body.transition);
     const title = deckTitle(slides, body.title?.trim() || "deckrun");
     const path = stashDeck(
-      generateHtml(slides, title, false, theme, size, { head: body.head, body: body.body })
+      generateHtml(
+        slides,
+        title,
+        false,
+        theme,
+        size,
+        { head: body.head, body: body.body },
+        { template, transition }
+      )
     );
 
     try {
@@ -515,7 +570,13 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
           res,
           mode.kind === "deck"
             ? mode.html
-            : generateEditorHtml(mode.theme, mode.size, mode.fonts)
+            : generateEditorHtml(
+                mode.theme,
+                mode.size,
+                mode.fonts,
+                mode.template,
+                mode.transition
+              )
         );
         return;
       }
@@ -525,13 +586,30 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
         return;
       }
 
+      if (pathname.startsWith("/__vendor/")) {
+        const asset = vendorAsset(pathname);
+        if (!asset) {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end("Not found");
+          return;
+        }
+        const data = await readFile(asset);
+        res.writeHead(200, {
+          "Content-Type": getMime(asset),
+          "Cache-Control": "public, max-age=31536000, immutable",
+        });
+        res.end(data);
+        return;
+      }
+
       if (mode.kind === "editor" && (await handleEditorRoute(mode, pathname, req, res))) {
         return;
       }
 
       // Everything else comes off disk, relative to the working directory.
       const filePath = resolve(baseDir, pathname.replace(/^\/+/, ""));
-      if (filePath !== baseDir && !filePath.startsWith(baseDir + "/")) {
+      const fromBase = relative(baseDir, filePath);
+      if (isAbsolute(fromBase) || fromBase.startsWith("..")) {
         res.writeHead(403);
         res.end("Forbidden");
         return;
@@ -574,9 +652,13 @@ program
   .option("--size <name>", "Type size: s, m, l, or xl", DEFAULT_SIZE)
   .option("--head-font <name>", "Override the theme's heading face (see --list-fonts)")
   .option("--body-font <name>", "Override the theme's body face (see --list-fonts)")
+  .option("--template <name>", "Composition template (see --list-templates)", DEFAULT_TEMPLATE)
+  .option("--transition <name>", "Slide transition (see --list-transitions)", DEFAULT_TRANSITION)
   .option("--list-themes", "Print every theme and exit")
   .option("--list-sizes", "Print every type size and exit")
   .option("--list-fonts", "Print every font face and exit")
+  .option("--list-templates", "Print every composition template and exit")
+  .option("--list-transitions", "Print every slide transition and exit")
   .action(
     async (
       file: string | undefined,
@@ -588,9 +670,13 @@ program
         size: string;
         headFont?: string;
         bodyFont?: string;
+        template: string;
+        transition: string;
         listThemes?: boolean;
         listSizes?: boolean;
         listFonts?: boolean;
+        listTemplates?: boolean;
+        listTransitions?: boolean;
       }
     ) => {
       if (opts.listThemes) {
@@ -605,6 +691,14 @@ program
         for (const line of fontListing()) console.log(line);
         process.exit(0);
       }
+      if (opts.listTemplates) {
+        for (const line of templateListing()) console.log(line);
+        process.exit(0);
+      }
+      if (opts.listTransitions) {
+        for (const line of transitionListing()) console.log(line);
+        process.exit(0);
+      }
 
       const named = findTheme(opts.theme);
       if (!named) {
@@ -617,6 +711,20 @@ program
       if (!sized) {
         console.error(
           `deckrun: unknown size '${opts.size}'. Run --list-sizes to see them all.`
+        );
+        process.exit(1);
+      }
+      const templated = findTemplate(opts.template);
+      if (!templated) {
+        console.error(
+          `deckrun: unknown template '${opts.template}'. Run --list-templates to see them all.`
+        );
+        process.exit(1);
+      }
+      const transitioned = findTransition(opts.transition);
+      if (!transitioned) {
+        console.error(
+          `deckrun: unknown transition '${opts.transition}'. Run --list-transitions to see them all.`
         );
         process.exit(1);
       }
@@ -640,6 +748,8 @@ program
 
       const theme: ThemeName = named;
       const size: SizeName = sized;
+      const template: TemplateName = templated;
+      const transition: TransitionName = transitioned;
       const fullscreen = !!opts.fullscreen;
 
       let mode: Mode;
@@ -707,9 +817,12 @@ program
           const defaultName = target.pathname.split("/").filter(Boolean).pop() || target.hostname;
 
           if (isHtml) {
-            if (opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont) {
+            if (
+              opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont ||
+              opts.template !== DEFAULT_TEMPLATE || opts.transition !== DEFAULT_TRANSITION
+            ) {
               console.error(
-                `${c.dim}deckrun: --size, --head-font, and --body-font only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
+                `${c.dim}deckrun: --size, font, template, and transition options only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
               );
             }
 
@@ -740,7 +853,7 @@ program
             const title = deckTitle(slides, defaultName);
             mode = {
               kind: "deck",
-              html: generateHtml(slides, title, fullscreen, theme, size, fonts),
+              html: generateHtml(slides, title, fullscreen, theme, size, fonts, { template, transition }),
             };
 
             const faces = [
@@ -748,7 +861,7 @@ program
               fonts.body ? `body ${fontName(fonts.body)}` : "",
             ].filter(Boolean).join(" · ");
             console.log(
-              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${file} · ${THEMES[theme].label} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
+              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${file} · ${THEMES[theme].label} · ${template} · ${transition} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
             );
           }
         } else {
@@ -765,9 +878,12 @@ program
               process.exit(1);
             }
 
-            if (opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont) {
+            if (
+              opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont ||
+              opts.template !== DEFAULT_TEMPLATE || opts.transition !== DEFAULT_TRANSITION
+            ) {
               console.error(
-                `${c.dim}deckrun: --size, --head-font, and --body-font only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
+                `${c.dim}deckrun: --size, font, template, and transition options only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
               );
             }
 
@@ -796,7 +912,7 @@ program
             const title = deckTitle(slides, basename(absPath, extname(absPath)));
             mode = {
               kind: "deck",
-              html: generateHtml(slides, title, fullscreen, theme, size, fonts),
+              html: generateHtml(slides, title, fullscreen, theme, size, fonts, { template, transition }),
             };
 
             const faces = [
@@ -804,13 +920,13 @@ program
               fonts.body ? `body ${fontName(fonts.body)}` : "",
             ].filter(Boolean).join(" · ");
             console.log(
-              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)} · ${THEMES[theme].label} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
+              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)} · ${THEMES[theme].label} · ${template} · ${transition} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
             );
           }
         }
       } else {
         baseDir = process.cwd();
-        mode = { kind: "editor", theme, size, fonts, fullscreen };
+        mode = { kind: "editor", theme, size, fonts, template, transition, fullscreen };
       }
 
       const port = await findFreePort(parseInt(opts.port, 10));
@@ -827,7 +943,7 @@ program
           `${c.dim}write on the left, live deck on the right. autosaves to your browser.${c.reset}`
         );
         console.log(
-          `${c.dim}Cmd/Ctrl+K inserts anything · Cmd/Ctrl+Shift+L switches theme · Cmd/Ctrl+Enter presents${c.reset}`
+          `${c.dim}Cmd/Ctrl+K inserts anything · template/theme controls recompose live · Cmd/Ctrl+Enter presents${c.reset}`
         );
       }
 
@@ -835,6 +951,94 @@ program
 
       // Keep the process alive until interrupted.
       await new Promise<void>(() => {});
+    }
+  );
+
+program
+  .command("lint")
+  .description("Check Markdown decks for common authoring and rendering problems")
+  .argument("<files...>", "Markdown files to check; use - to read standard input")
+  .option("--format <format>", "Output format: stylish or json", "stylish")
+  .option("--max-warnings <number>", "Warnings allowed before the command fails", "0")
+  .action(
+    (files: string[], opts: { format: string; maxWarnings: string }) => {
+      if (opts.format !== "stylish" && opts.format !== "json") {
+        console.error("deckrun lint: --format must be 'stylish' or 'json'.");
+        process.exitCode = 2;
+        return;
+      }
+
+      const maxWarnings = Number.parseInt(opts.maxWarnings, 10);
+      if (!Number.isInteger(maxWarnings) || maxWarnings < -1) {
+        console.error("deckrun lint: --max-warnings must be -1 or a non-negative integer.");
+        process.exitCode = 2;
+        return;
+      }
+
+      const reports: Array<{
+        file: string;
+        issues: LintIssue[];
+        slides: number;
+        errors: number;
+        warnings: number;
+      }> = [];
+
+      for (const file of files) {
+        let markdown: string;
+        try {
+          markdown = file === "-" ? readFileSync(0, "utf-8") : readFileSync(resolve(process.cwd(), file), "utf-8");
+        } catch {
+          reports.push({
+            file,
+            slides: 0,
+            errors: 1,
+            warnings: 0,
+            issues: [{
+              rule: "file-read",
+              severity: "error",
+              message: "The file could not be read.",
+              line: 1,
+              column: 1,
+            }],
+          });
+          continue;
+        }
+
+        const result = lintMarkdown(markdown);
+        reports.push({ file, ...result });
+      }
+
+      const errors = reports.reduce((sum, report) => sum + report.errors, 0);
+      const warnings = reports.reduce((sum, report) => sum + report.warnings, 0);
+      const issueCount = errors + warnings;
+
+      if (opts.format === "json") {
+        console.log(JSON.stringify({ files: reports, errors, warnings }, null, 2));
+      } else {
+        for (const report of reports) {
+          if (!report.issues.length) continue;
+          console.log(`\n${report.file}`);
+          for (const item of report.issues) {
+            const position = `${item.line}:${item.column}`.padEnd(9);
+            const severity = item.severity.padEnd(7);
+            const slide = item.slide ? `slide ${item.slide} · ` : "";
+            console.log(`  ${position} ${severity} ${slide}${item.message}  ${item.rule}`);
+          }
+        }
+
+        if (issueCount === 0) {
+          const slides = reports.reduce((sum, report) => sum + report.slides, 0);
+          console.log(`✓ ${files.length} file${files.length === 1 ? "" : "s"}, ${slides} slide${slides === 1 ? "" : "s"}, no problems`);
+        } else {
+          console.log(
+            `\n✖ ${issueCount} problem${issueCount === 1 ? "" : "s"} (${errors} error${errors === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"})`
+          );
+        }
+      }
+
+      if (errors > 0 || (maxWarnings !== -1 && warnings > maxWarnings)) {
+        process.exitCode = 1;
+      }
     }
   );
 
