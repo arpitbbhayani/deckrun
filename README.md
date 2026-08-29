@@ -6,6 +6,7 @@ Write slides in Markdown or bring a self-contained HTML document, run a local se
 - **Live editor** - edit alongside a live preview, with autosave and a library of all your decks and docs
 - **14 themes** - unique palettes, typography, animated backdrops, four type sizes, and customizable heading and body fonts
 - **Presenter tools** - laser pointer, drawing pen, blank canvas, blackout mode, and `?` for shortcuts
+- **Notes while presenting** - present from the editor and its preview and notes panel follow the deck tab, so the editor is your notes screen
 - **Export** - Markdown, HTML, headless-rendered PDF, or a standalone presenter-ready HTML page
 - **Local-first** - binds only to `127.0.0.1`; nothing is uploaded, and your work stays in browser local storage until export
 
@@ -403,7 +404,7 @@ Rolling deployment with zero downtime.
 <!-- notes: Review database migration rollout steps before advancing. -->
 ```
 
-Every such comment is stripped from the slide, so notes never leak into the projected output or the PDF export. There is no presenter window yet, so the notes are not displayed anywhere either. See [Not supported yet](#not-supported-yet).
+Every such comment is stripped from the slide, so notes never leak into the projected output or the PDF export. When you present from the editor, the notes of the slide on screen are shown in the editor's notes panel instead.
 
 ### Image layout directives
 
@@ -690,6 +691,17 @@ Press `B` to drop the screen to black, for the moment when the room should be lo
 
 Press `F` at any time to toggle fullscreen. Browsers only grant fullscreen from a user gesture, which is what `--fullscreen` works around: it shows a launch overlay that requests fullscreen on the first key or click, so the deck opens fullscreen without a manual step.
 
+### Notes while presenting
+
+Present **from the editor** (`Cmd+Enter`) and the deck opens in its own tab; the editor tab stays yours. Its preview and speaker-notes panel follow the deck's current slide, so the deck goes on the projector and the notes stay on your screen.
+
+- A `following deck · n` chip appears in the status bar, showing the slide the deck is on. It follows however you advance the deck — keys, footer arrows, overview.
+- Typing in the editor (or clicking the chip) stops the following and hands the screen back to the caret. Presenting again turns it back on.
+- The link is live: it survives a reload of either tab.
+- The notes shown are the slide's `<!-- notes: ... -->`, the same text the audience never sees.
+
+A deck run straight from a file has no editor to follow it; present it through the editor instead (`deckrun`, then drag the file onto it, then `Cmd+Enter`) to get the notes during the talk.
+
 ## Visual design
 
 - Terminal aesthetics throughout, set in IBM Plex Mono with a blinking mauve cursor in the top right corner.
@@ -855,7 +867,6 @@ deckrun examples/example-1.md --fullscreen --no-open
 
 Worth knowing before you plan a talk around them:
 
-- No presenter view while presenting. The editor shows the notes for the slide you are on, but the presented deck has no second window, no next-slide peek, and no timer.
 - No live reload in file mode. Editing the file needs a restart of the CLI. The editor previews as you type, so use it for the writing loop.
 - No LaTeX or math rendering, and no Mermaid diagrams. Use fenced code blocks or ASCII diagrams.
 - No incremental reveal of bullets within a slide.

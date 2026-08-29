@@ -1137,6 +1137,10 @@ export function generateHtml(
   const slideHtml = slides.map((s, i) => renderSlide(s, i)).join("\n");
   const total = slides.length;
 
+  // Speaker notes ride along as JSON so the editor's notes panel can show
+  // them; they are never rendered into the deck itself.
+  const notesJson = JSON.stringify(slides.map((s) => s.notes ?? "")).replace(/</g, "\\u003c");
+
   const pageTitle = title ? (title.toLowerCase().includes("deckrun") ? title : `${title} · deckrun`) : "deckrun";
   return `<!DOCTYPE html>
 <html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-size="${size}"${fontAttrs}>
@@ -1231,6 +1235,8 @@ ${autoFullscreen ? `<div id="fs-hint">
   <div id="fs-hint__inner">Press any key or click to enter fullscreen</div>
 </div>` : ''}
 
+<script id="deck-notes" type="application/json">${notesJson}</script>
+
 <script>
 (function () {
   'use strict';
@@ -1300,10 +1306,53 @@ ${autoFullscreen ? `<div id="fs-hint">
     elFill.style.width = pct + '%';
     elBtnPrev.style.opacity = cur === 0 ? '0.2' : '1';
     elBtnNext.style.opacity = cur === total - 1 ? '0.2' : '1';
+    post({ type: 'state', index: cur, total: total });
   }
 
   function next() { showSlide(cur + 1, 'forward');  }
   function prev() { showSlide(cur - 1, 'backward'); }
+
+  // ── Editor mirror ─────────────────────────────────────────────────────
+  // The editor that presented this tab is a peer of it: this tab feeds it,
+  // over BroadcastChannel, the slides on screen plus the speaker notes. The
+  // session id comes from the URL the editor opened (ps=...), so only a deck
+  // an editor actually presented listens; one opened straight from a file
+  // skips the machinery entirely.
+  const psParam = new URLSearchParams(location.search).get('ps');
+  const sid = (psParam && /^[A-Za-z0-9-]{1,64}$/.test(psParam)) ? psParam : null;
+  const channel = (sid && typeof BroadcastChannel !== 'undefined')
+    ? new BroadcastChannel('deckrun:' + sid)
+    : null;
+
+  function post(msg) {
+    if (!channel) return;
+    msg.id = sid;
+    channel.postMessage(msg);
+  }
+
+  if (channel) {
+    const NOTES = (function readNotes() {
+      try {
+        return JSON.parse(document.getElementById('deck-notes').textContent);
+      } catch (e) {
+        return [];
+      }
+    })();
+
+    channel.onmessage = function (e) {
+      const m = e.data || {};
+      if (m.id !== sid) return;
+      if (m.type === 'ready') {
+        post({ type: 'init', notes: NOTES });
+        post({ type: 'state', index: cur, total: total });
+      } else if (m.type === 'goto') {
+        const i = parseInt(m.index, 10);
+        if (!isNaN(i) && i >= 0 && i < total && i !== cur) {
+          showSlide(i, i > cur ? 'forward' : 'backward');
+        }
+      }
+    };
+  }
 
   // ── Overview mode ────────────────────────────────────────────────────
   function buildOverview() {
