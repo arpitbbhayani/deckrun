@@ -346,7 +346,7 @@ export const TIPS: string[] = [
   "Use *** for a rule inside a slide. --- would start a new one.",
   "<kbd>Cmd</kbd> renders as a key cap, <mark>42ms</mark> as a highlight.",
   "Cmd Enter presents the deck in a new tab, exactly as your audience sees it.",
-  "Alt Up and Alt Down hop the caret between slides.",
+  "Alt Left/Right or Alt Up/Down hops between slides.",
   "Export as PDF from the top bar: a real file, 16:9 pages, no print dialog to wrestle.",
   "Seven bullets is about the ceiling before a slide stops reading from the back row.",
   "Drag the divider to resize. Double-click it to snap back to an even split.",

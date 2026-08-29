@@ -78,7 +78,7 @@ export function fontName(key: string): string {
 
 const SANS = "system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
 const SERIF = "Georgia, 'Times New Roman', serif";
-const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+const MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 
 export const FONTS: Record<string, FontFace> = {
   inter:         { param: "Inter:wght@300;400;500;600;700;800",                      stack: `'Inter', ${SANS}`, kind: "sans" },
@@ -115,6 +115,7 @@ export function googleFontsHref(
   extra: Array<string | null | undefined> = []
 ): string {
   const wanted = new Set<string>();
+  wanted.add("jetbrains");
   for (const input of themes) {
     const t = THEMES[resolveThemeName(input)];
     wanted.add(t.type.display);

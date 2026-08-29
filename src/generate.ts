@@ -127,7 +127,8 @@ export const SLIDE_CSS = `html, body {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: flex-start;
   padding: var(--slide-pad-y) var(--slide-pad-x);
   opacity: 0;
@@ -171,7 +172,7 @@ export const SLIDE_CSS = `html, body {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 1100px;
+  max-width: 100%;
   max-height: calc(100vh - var(--slide-pad-y) * 2);
   overflow: hidden;
 }
@@ -206,7 +207,7 @@ export const SLIDE_CSS = `html, body {
   z-index: 1;
   display: flex;
   width: 100%;
-  max-width: 1400px;
+  max-width: 100%;
   height: calc(100vh - var(--slide-pad-y) * 2);
   align-items: center;
   gap: 3.2rem;
@@ -298,7 +299,6 @@ export const SLIDE_CSS = `html, body {
   line-height: calc(1.72 * var(--type-lead));
   margin-bottom: 1rem;
   color: var(--subtext1);
-  max-width: 62ch;
 }
 
 .slide__content strong {
@@ -321,7 +321,6 @@ export const SLIDE_CSS = `html, body {
   line-height: calc(1.72 * var(--type-lead));
   margin-bottom: 1rem;
   color: var(--subtext1);
-  max-width: 64ch;
 }
 
 .slide__content ul { list-style: none; padding-left: 1.35em; }
@@ -434,7 +433,6 @@ export const SLIDE_CSS = `html, body {
   border-radius: 0 10px 10px 0;
   color: var(--subtext1);
   font-size: calc(clamp(1rem, 1.5vw, 1.3rem) * var(--type-body));
-  max-width: 60ch;
 }
 
 .slide__content blockquote::before {

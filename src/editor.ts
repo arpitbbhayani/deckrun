@@ -333,21 +333,30 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   position: absolute;
   inset: 0;
   margin: 0;
-  padding: 18px 20px 45vh 20px;
+  padding: 18px 20px;
   font-family: var(--font-mono);
   font-size: 13.5px;
   font-weight: 400;
+  font-style: normal;
   line-height: 1.75;
   letter-spacing: 0;
+  word-spacing: 0;
   white-space: pre-wrap;
   overflow-wrap: break-word;
   word-break: break-word;
   tab-size: 2;
   border: 0;
+  box-sizing: border-box;
   background: transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-#hl { z-index: 1; overflow: hidden; pointer-events: none; color: var(--subtext0); counter-reset: sld 1; }
+#hl::-webkit-scrollbar, #src::-webkit-scrollbar {
+  display: none;
+}
+
+#hl { z-index: 1; overflow: hidden; pointer-events: none; color: var(--subtext0); }
 #measure { z-index: 0; visibility: hidden; overflow: hidden; }
 
 #src {
@@ -360,38 +369,28 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   outline: none;
 }
 
-#src::selection { background: var(--surface1); color: transparent; }
+#src::selection { background: var(--surface2); color: transparent; }
 
-/* Markdown tokens */
-.t-h1 { color: var(--accent); font-weight: 700; }
-.t-h2 { color: var(--accent-2); font-weight: 600; }
-.t-h3 { color: var(--accent-3); font-weight: 500; }
+/* Markdown tokens — color only to guarantee pixel-identical alignment */
+.t-h1 { color: var(--accent); }
+.t-h2 { color: var(--accent-2); }
+.t-h3 { color: var(--accent-3); }
 .t-h4 { color: var(--teal); }
-.t-strong { color: var(--peach); font-weight: 600; }
-.t-em { color: var(--subtext1); font-style: italic; }
+.t-strong { color: var(--peach); }
+.t-em { color: var(--subtext1); }
 .t-code { color: var(--green); }
 .t-fence { color: var(--overlay1); }
 .t-codeline { color: var(--subtext1); }
-.t-quote { color: var(--subtext0); font-style: italic; }
+.t-quote { color: var(--subtext0); }
 .t-marker { color: var(--accent); }
 .t-link { color: var(--blue); }
 .t-url { color: var(--overlay0); }
 .t-img { color: var(--sapphire); }
-.t-dir { color: var(--yellow); font-weight: 600; }
-.t-note { color: var(--overlay0); font-style: italic; }
+.t-dir { color: var(--yellow); }
+.t-note { color: var(--overlay0); }
 .t-html { color: var(--pink); }
 .t-table { color: var(--lavender); }
-
-.t-sep { position: relative; color: var(--accent); counter-increment: sld; }
-.t-sep::after {
-  content: 'slide ' counter(sld);
-  position: absolute;
-  left: calc(100% + 14px);
-  top: 0;
-  white-space: nowrap;
-  color: var(--overlay0);
-  font-size: 11px;
-}
+.t-sep { color: var(--accent); }
 
 /* ── Drop target ──────────────────────────────────────────────────────── */
 #pane-edit.is-dropping::after {
@@ -409,56 +408,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   letter-spacing: 0.05em;
   pointer-events: none;
 }
-
-/* ── Contextual nudge ─────────────────────────────────────────────────── */
-#nudge {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 14px;
-  z-index: 7;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 11px 13px;
-  background: var(--base);
-  border: 1px solid var(--surface1);
-  border-left: 2px solid var(--accent);
-  border-radius: 9px;
-  box-shadow: var(--shadow-md);
-  opacity: 0;
-  transform: translateY(10px);
-  pointer-events: none;
-  transition: opacity 0.22s ease, transform 0.22s ease;
-}
-
-#nudge.is-on { opacity: 1; transform: translateY(0); pointer-events: all; }
-#nudge__body { flex: 1 1 auto; }
-#nudge__label {
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 4px;
-}
-#nudge__text { font-size: 12.5px; color: var(--subtext1); line-height: 1.6; }
-#nudge__text code {
-  font: inherit;
-  color: var(--green);
-  background: var(--surface-soft);
-  border-radius: 4px;
-  padding: 0.05em 0.3em;
-}
-#nudge__acts { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-.nudge-btn {
-  font-size: 11px;
-  color: var(--subtext0);
-  border: 1px solid var(--surface1);
-  border-radius: 6px;
-  padding: 4px 8px;
-}
-.nudge-btn:hover { border-color: var(--accent); color: var(--text); }
-.nudge-btn--x { padding: 4px 7px; color: var(--overlay0); }
 
 /* ── Preview ──────────────────────────────────────────────────────────── */
 #prev-head {
@@ -1236,16 +1185,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         <pre id="measure" aria-hidden="true"></pre>
         <textarea id="src" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="soft" aria-label="Markdown source"></textarea>
       </div>
-      <div id="nudge">
-        <div id="nudge__body">
-          <div id="nudge__label">try this</div>
-          <div id="nudge__text"></div>
-        </div>
-        <div id="nudge__acts">
-          <button class="nudge-btn" id="nudge-do">insert</button>
-          <button class="nudge-btn nudge-btn--x" id="nudge-x" title="Dismiss">&times;</button>
-        </div>
-      </div>
       <textarea id="src-html" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off" aria-label="HTML source"></textarea>
     </section>
 
@@ -1619,7 +1558,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var elChipSlides = $('chip-slides'), elSave = $('save-state'), elPos = $('pos'), elWords = $('words');
   var elCount = $('prev-count'), elScale = $('prev-scale');
   var elNotes = $('notes'), elNotesText = $('notes__text');
-  var elNudge = $('nudge'), elNudgeText = $('nudge__text'), elNudgeDo = $('nudge-do'), elNudgeX = $('nudge-x');
   var palette = $('palette'), palInput = $('pal-input'), palList = $('pal-list');
   var guide = $('guide'), guideBody = $('guide-body');
   var srcHtml = $('src-html'), frameHtml = $('frame-html');
@@ -1743,7 +1681,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         out.push('<span class="t-sep">' + esc(line) + '</span>');
         continue;
       }
-      if (/^\\s*&lt;!--/.test(esc(line)) || /^\\s*<!--/.test(line)) {
+      if (/^\\s*<!--/.test(line)) {
         out.push('<span class="t-note">' + esc(line) + '</span>');
         continue;
       }
@@ -1754,7 +1692,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         out.push('<span class="t-h' + lvl + '">' + inlineTokens(line) + '</span>');
         continue;
       }
-      if (/^\\s*&gt;/.test(esc(line))) {
+      if (/^\\s*>/.test(line)) {
         out.push('<span class="t-quote">' + inlineTokens(line) + '</span>');
         continue;
       }
@@ -1892,12 +1830,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     var before = src.value.slice(0, src.selectionStart);
     var lines = before.split('\\n');
     elPos.textContent = 'Ln ' + lines.length + ', Col ' + (lines[lines.length - 1].length + 1);
-    var i = caretSlide();
-    if (i !== state.index) {
-      state.index = i;
-      post({ type: 'index', index: i });
-      renderCounts();
-    }
   }
 
   // ── Parse round-trip: the server owns the Markdown, so what you see here
@@ -2123,58 +2055,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var bySnippetId = {};
   D.snippets.forEach(function (s) { bySnippetId[s.id] = s; });
 
-  function evalNudges() {
-    if (Date.now() - state.bootAt < 5000) return;
-    var ctx = docContext();
-    for (var i = 0; i < NUDGE_RULES.length; i++) {
-      var rule = NUDGE_RULES[i];
-      if (state.dismissed[rule.id]) continue;
-      var message = rule.test(ctx);
-      if (!message) continue;
-      showNudge(rule, message);
-      return;
-    }
-    hideNudge();
-  }
-
-  function showNudge(rule, message) {
-    if (state.activeNudge && state.activeNudge.rule.id === rule.id &&
-        state.activeNudge.message === message) return;
-    if (state.activeNudge && Date.now() - state.nudgeShownAt < 2500) return;
-    state.activeNudge = { rule: rule, message: message };
-    state.nudgeShownAt = Date.now();
-    elNudgeText.innerHTML = message;
-    elNudgeDo.textContent = rule.action === 'download' ? 'download' : 'insert';
-    elNudge.classList.add('is-on');
-  }
-
-  function hideNudge() {
-    state.activeNudge = null;
-    elNudge.classList.remove('is-on');
-  }
-
-  elNudgeDo.addEventListener('click', function () {
-    var active = state.activeNudge;
-    if (!active) return;
-    if (active.rule.action) runAction(active.rule.action);
-    else if (bySnippetId[active.rule.snippet]) insertSnippet(bySnippetId[active.rule.snippet]);
-    hideNudge();
-  });
-
-  elNudgeX.addEventListener('click', function () {
-    var active = state.activeNudge;
-    if (active) {
-      state.dismissed[active.rule.id] = true;
-      // A tip stays dismissed for good; a real problem may nag again next session.
-      if (!active.rule.sticky) {
-        var keep = Object.keys(state.dismissed).filter(function (id) {
-          return !NUDGE_RULES.some(function (r) { return r.id === id && r.sticky; });
-        });
-        lsSet(K.nudge, JSON.stringify(keep));
-      }
-    }
-    hideNudge();
-  });
+  function evalNudges() {}
+  function hideNudge() {}
 
   // ── Tips carousel ──────────────────────────────────────────────────────
   var tipTimer = null;
@@ -3197,6 +3079,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     else if (name === 'grid') setMode(state.mode === 'grid' ? 'single' : 'grid');
     else if (name === 'theme') openThemes();
     else if (name === 'guide') { guide.classList.add('is-on'); }
+    else if (name === 'palette') openPalette();
     else if (name === 'decks') openLibrary();
     else if (name === 'new') newDeck();
     else if (name === 'duplicate') duplicateDeck();
@@ -3228,26 +3111,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       e.preventDefault();
       typeText('  ');
       onInput();
-      return;
-    }
-    // Continue the list you are in.
-    if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-      var upto = src.value.slice(0, src.selectionStart);
-      var line = upto.slice(upto.lastIndexOf('\\n') + 1);
-      var m = line.match(/^(\\s*)([-*+]|(\\d+)[.)])(\\s+)(.*)$/);
-      if (m && src.selectionStart === src.selectionEnd) {
-        e.preventDefault();
-        if (!m[5]) {
-          // Empty item: end the list instead of nesting further.
-          var start = src.selectionStart - line.length;
-          src.setSelectionRange(start, src.selectionStart);
-          typeText('\\n');
-        } else {
-          var marker = m[3] ? (parseInt(m[3], 10) + 1) + m[2].slice(String(m[3]).length) : m[2];
-          typeText('\\n' + m[1] + marker + m[4]);
-        }
-        onInput();
-      }
     }
   });
 
@@ -3467,12 +3330,25 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     themeCards[next].scrollIntoView({ block: 'nearest' });
   }, true);
   $('btn-present').addEventListener('click', present);
-  $('btn-prev').addEventListener('click', function () { setIndex(state.index - 1, true); });
-  $('btn-next').addEventListener('click', function () { setIndex(state.index + 1, true); });
+  $('btn-prev').addEventListener('click', function () { setIndex(state.index - 1, false); });
+  $('btn-next').addEventListener('click', function () { setIndex(state.index + 1, false); });
   $('seg-single').addEventListener('click', function () { setMode('single'); });
   $('seg-grid').addEventListener('click', function () { setMode('grid'); });
 
+  $('pane-prev').addEventListener('mousedown', function () {
+    if (document.activeElement && isEditingText()) {
+      document.activeElement.blur();
+    }
+  });
+
   // ── Global keys ────────────────────────────────────────────────────────
+  function isEditingText() {
+    var el = document.activeElement;
+    if (!el) return false;
+    var tag = el.tagName ? el.tagName.toLowerCase() : '';
+    return tag === 'textarea' || tag === 'input' || el.isContentEditable;
+  }
+
   document.addEventListener('keydown', function (e) {
     var mod = e.metaKey || e.ctrlKey;
 
@@ -3510,31 +3386,59 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       }
       return;
     }
-    if (!mod) return;
 
-    var key = e.key.toLowerCase();
+    if (mod) {
+      var key = e.key.toLowerCase();
+      var md = state.kind === 'markdown';
 
-    var md = state.kind === 'markdown';
+      if (key === 'k' && !e.shiftKey && md) { e.preventDefault(); openPalette(); }
+      else if (key === 'o') { e.preventDefault(); openLibrary(); }
+      else if (key === '/' && md) { e.preventDefault(); runAction('guide'); }
+      else if (key === 's' && e.shiftKey) { e.preventDefault(); exportPdf(); }
+      else if (key === 's') { e.preventDefault(); saveNow(); download(); }
+      else if (key === 'enter') { e.preventDefault(); present(); }
+      else if (key === 'd' && md) { e.preventDefault(); insertSnippet(bySnippetId['slide-break']); }
+      else if (key === 'b' && md) { e.preventDefault(); insertSnippet(bySnippetId.bold); }
+      else if (key === 'i' && md) { e.preventDefault(); insertSnippet(bySnippetId.italic); }
+      else if (key === 'e' && md) { e.preventDefault(); insertSnippet(bySnippetId['inline-code']); }
+      else if (key === 'g' && md) { e.preventDefault(); runAction('grid'); }
+      else if (key === 'l' && e.shiftKey) { e.preventDefault(); runAction('theme'); }
+      return;
+    }
 
-    if (key === 'k' && !e.shiftKey && md) { e.preventDefault(); openPalette(); }
-    else if (key === 'o') { e.preventDefault(); openLibrary(); }
-    else if (key === '/' && md) { e.preventDefault(); runAction('guide'); }
-    else if (key === 's' && e.shiftKey) { e.preventDefault(); exportPdf(); }
-    else if (key === 's') { e.preventDefault(); saveNow(); download(); }
-    else if (key === 'enter') { e.preventDefault(); present(); }
-    else if (key === 'd' && md) { e.preventDefault(); insertSnippet(bySnippetId['slide-break']); }
-    else if (key === 'b' && md) { e.preventDefault(); insertSnippet(bySnippetId.bold); }
-    else if (key === 'i' && md) { e.preventDefault(); insertSnippet(bySnippetId.italic); }
-    else if (key === 'e' && md) { e.preventDefault(); insertSnippet(bySnippetId['inline-code']); }
-    else if (key === 'g' && md) { e.preventDefault(); runAction('grid'); }
-    else if (key === 'l' && e.shiftKey) { e.preventDefault(); runAction('theme'); }
-  });
+    if (palette.classList.contains('is-on') || guide.classList.contains('is-on') ||
+        $('library').classList.contains('is-on') || menuIsOpen()) {
+      return;
+    }
 
-  // Alt + up/down hops between slides.
-  document.addEventListener('keydown', function (e) {
-    if (!e.altKey || e.metaKey || e.ctrlKey) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setIndex(state.index + 1, true); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex(state.index - 1, true); }
+    // Alt + arrows/page keys hops between slides (works anywhere, including inside the editor).
+    if (e.altKey) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'PageDown') {
+        e.preventDefault();
+        setIndex(state.index + 1, false);
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        setIndex(state.index - 1, false);
+      }
+      return;
+    }
+
+    // Direct arrow keys / page keys when not typing into a text field.
+    if (!isEditingText()) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        setIndex(state.index + 1, false);
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        setIndex(state.index - 1, false);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        setIndex(0, false);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        setIndex(state.slides.length - 1, false);
+      }
+    }
   });
 
   // ── Split pane ─────────────────────────────────────────────────────────
@@ -3591,6 +3495,12 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     } else if (m.type === 'goto') {
       setMode('single');
       setIndex(m.index, true);
+    } else if (m.type === 'nav') {
+      setIndex(state.index + m.delta, false);
+    } else if (m.type === 'index-select') {
+      setIndex(m.index, false);
+    } else if (m.type === 'action') {
+      runAction(m.action);
     } else if (m.type === 'overflow') {
       var had = !!state.overflow[m.index];
       state.overflow[m.index] = m.overflow;

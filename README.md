@@ -9,7 +9,7 @@ Write slides in Markdown or bring a self-contained HTML document, run a local se
 - **Export** - Markdown, HTML, headless-rendered PDF, or a standalone presenter-ready HTML page
 - **Local-first** - binds only to `127.0.0.1`; nothing is uploaded, and your work stays in browser local storage until export
 
-![Slide showing a code-heavy presentation with syntax highlighting](https://github.com/user-attachments/assets/07b0659c-f82c-44b2-8ecd-815dfd081c49)
+![Slide showing a code-heavy presentation with syntax highlighting](https://github.com/user-attachments/assets/e61d23e7-3f35-46c9-95a0-ce4976b6179c)
 
 ## Quick start
 
@@ -147,7 +147,7 @@ the one you have open.
 - Markdown is syntax-highlighted in place: headings by level, bold, italic, inline code, links, image directives, fences, tables, notes, and raw HTML each get their own color.
 - Enter continues the list you are in, and continues numbering. Enter on an empty item ends the list.
 - Tab inserts two spaces.
-- `Alt Up` and `Alt Down` hop the caret between slides.
+- `Alt Left` / `Alt Right` (or `Alt Up` / `Alt Down`) hop the caret between slides.
 
 ### Discovering what a slide can hold
 
@@ -246,7 +246,7 @@ An HTML doc's PDF is not paginated to 16:9 slides — it prints the doc's own `@
 | `Cmd E`             | Inline code                |
 | `Cmd G`             | Toggle grid preview        |
 | `Cmd Shift L`       | Theme and type size picker  |
-| `Alt Up`, `Alt Down`| Previous and next slide    |
+| `Alt Left`, `Alt Right`, `Alt Up`, `Alt Down`| Previous and next slide |
 | `Esc`               | Close a menu, the palette, or the guide |
 
 `Cmd K` (palette), `Cmd /` (guide), `Cmd D/B/I/E` (snippets), and `Cmd G` (grid) are Markdown-only — an HTML doc's source is plain text with no snippet catalog or grid view. Library, present, and both exports stay wired the same for either kind.

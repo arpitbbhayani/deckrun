@@ -244,6 +244,86 @@ body.is-empty #pv-empty { display: flex; }
     if (thumb) send({ type: 'goto', index: parseInt(thumb.dataset.index, 10) });
   });
 
+  window.addEventListener('keydown', function (e) {
+    var mod = e.metaKey || e.ctrlKey;
+    if (mod) {
+      var k = e.key.toLowerCase();
+      if (k === 'enter') { e.preventDefault(); send({ type: 'action', action: 'present' }); }
+      else if (k === 'k' && !e.shiftKey) { e.preventDefault(); send({ type: 'action', action: 'palette' }); }
+      else if (k === 'g') { e.preventDefault(); send({ type: 'action', action: 'grid' }); }
+      else if (k === 'o') { e.preventDefault(); send({ type: 'action', action: 'decks' }); }
+      else if (k === '/') { e.preventDefault(); send({ type: 'action', action: 'guide' }); }
+      else if (k === 's' && e.shiftKey) { e.preventDefault(); send({ type: 'action', action: 'pdf' }); }
+      else if (k === 's') { e.preventDefault(); send({ type: 'action', action: 'download' }); }
+      else if (k === 'l' && e.shiftKey) { e.preventDefault(); send({ type: 'action', action: 'theme' }); }
+      return;
+    }
+
+    if (mode === 'grid') {
+      var thumbs = stage.querySelectorAll('.pv-thumb');
+      if (!thumbs.length) return;
+      var cols = 1;
+      if (thumbs.length > 1) {
+        var firstTop = thumbs[0].offsetTop;
+        for (var c = 1; c < thumbs.length; c++) {
+          if (thumbs[c].offsetTop !== firstTop) { cols = c; break; }
+        }
+        if (cols === 1 && thumbs.length > 1 && thumbs[1].offsetTop === firstTop) {
+          cols = thumbs.length;
+        }
+      }
+      var step = 0;
+      if (e.key === 'ArrowRight') step = 1;
+      else if (e.key === 'ArrowLeft') step = -1;
+      else if (e.key === 'ArrowDown') step = cols;
+      else if (e.key === 'ArrowUp') step = -cols;
+      else if (e.key === 'Home') { e.preventDefault(); send({ type: 'goto', index: 0 }); return; }
+      else if (e.key === 'End') { e.preventDefault(); send({ type: 'goto', index: slides.length - 1 }); return; }
+      else if (e.key === 'Enter') { e.preventDefault(); send({ type: 'goto', index: index }); return; }
+      else if (e.key === 'Escape') { e.preventDefault(); send({ type: 'goto', index: index }); return; }
+      else return;
+
+      e.preventDefault();
+      var next = Math.max(0, Math.min(slides.length - 1, index + step));
+      index = next;
+      var cur = stage.querySelector('.pv-thumb.is-current');
+      if (cur) cur.classList.remove('is-current');
+      var nextThumb = stage.querySelector('.pv-thumb[data-index="' + index + '"]');
+      if (nextThumb) {
+        nextThumb.classList.add('is-current');
+        nextThumb.scrollIntoView({ block: 'nearest' });
+      }
+      send({ type: 'index-select', index: index });
+      return;
+    }
+
+    // Single mode: Alt navigation or standard keys
+    if (e.altKey) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'PageDown') {
+        e.preventDefault();
+        send({ type: 'nav', delta: 1 });
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        send({ type: 'nav', delta: -1 });
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault();
+      send({ type: 'nav', delta: 1 });
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+      e.preventDefault();
+      send({ type: 'nav', delta: -1 });
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      send({ type: 'goto', index: 0 });
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      send({ type: 'goto', index: slides.length - 1 });
+    }
+  });
+
   window.addEventListener('resize', function () {
     if (mode === 'grid') scaleThumbs();
   });
