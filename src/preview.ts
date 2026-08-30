@@ -304,7 +304,7 @@ ${RICH_CONTENT_RUNTIME}
       else if (k === 'g') { e.preventDefault(); send({ type: 'action', action: 'grid' }); }
       else if (k === 'o') { e.preventDefault(); send({ type: 'action', action: 'decks' }); }
       else if (k === '/') { e.preventDefault(); send({ type: 'action', action: 'guide' }); }
-      else if (k === 's' && e.shiftKey) { e.preventDefault(); send({ type: 'action', action: 'pdf' }); }
+      else if (k === 'p' || (k === 's' && e.shiftKey)) { e.preventDefault(); send({ type: 'action', action: 'pdf' }); }
       else if (k === 's') { e.preventDefault(); send({ type: 'action', action: 'download' }); }
       else if (k === 'l' && e.shiftKey) { e.preventDefault(); send({ type: 'action', action: 'theme' }); }
       return;

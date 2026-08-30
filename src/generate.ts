@@ -3,15 +3,21 @@ import {
   DECOR_CSS,
   DEFAULT_SIZE,
   DEFAULT_THEME,
+  THEME_IDS,
+  THEMES,
+  decorMapJson,
   decorOf,
   findFont,
   fontOverrideCss,
   googleFontsHref,
   hljsHref,
+  hljsMapJson,
   resolveSizeName,
   resolveThemeName,
   sizeRootCss,
   themeRootCss,
+  themeSummaries,
+  themeSwitchableCss,
   type SizeName,
   type ThemeName,
 } from "./themes.js";
@@ -114,7 +120,15 @@ export function renderSlide(slide: Slide, index: number): string {
 
 /** Box-model reset shared by the deck and the editor preview. */
 export const RESET_CSS = `/* ── Reset & base ─────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }`;
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+::selection {
+  background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.35)));
+  color: var(--selection-text, inherit);
+}
+::-moz-selection {
+  background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.35)));
+  color: var(--selection-text, inherit);
+}`;
 
 /** Slide rendering rules. Shared verbatim by the deck and the editor preview. */
 export const SLIDE_CSS = `html, body {
@@ -860,7 +874,7 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
   .slide__content iframe, .slide__content video { max-height: 4in !important; }
 
   #hud, .nav-arrow, #overview, #kbd-hint, #cursor, #fs-hint, .pet,
-  #board, #laser, #blackout, #help {
+  #board, #laser, #blackout, #help, #themes {
     display: none !important;
   }
 }`;
@@ -964,6 +978,38 @@ const PRESENTER_CSS = `/* ── HUD tool strip ──────────�
   text-align: center;
 }
 
+#hud-right {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  flex: 0 0 auto;
+}
+
+.hud-brand {
+  pointer-events: all;
+  font-size: 0.64rem;
+  color: var(--overlay0);
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  opacity: 0.72;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.hud-brand:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.hud-brand span {
+  font-weight: 600;
+  color: var(--subtext1);
+}
+
+.hud-brand:hover span {
+  color: var(--accent);
+}
+
 /* ── Annotation canvas ────────────────────────────────────────────────── */
 #board {
   position: fixed;
@@ -1018,6 +1064,215 @@ body.laser-on, body.laser-on #board.is-drawing { cursor: none; }
 }
 
 #blackout.is-on { display: block; }
+
+/* ── Theme picker overlay ─────────────────────────────────────────────── */
+#themes {
+  position: fixed;
+  inset: 0;
+  z-index: 450;
+  display: none;
+}
+
+#themes.is-on { display: block; }
+
+#themes__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--crust-overlay);
+  backdrop-filter: blur(4px);
+}
+
+#themes__box {
+  font-family: var(--font-mono);
+  position: relative;
+  width: min(980px, 94vw);
+  max-height: 84vh;
+  margin: 6vh auto 0;
+  background: var(--mantle);
+  border: 1px solid var(--surface1);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#themes__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 1rem 1.4rem;
+  border-bottom: 1px solid var(--surface0);
+  background: var(--mantle);
+}
+
+.th-head__title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.th-head__sub {
+  flex: 1 1 auto;
+  font-size: 0.68rem;
+  color: var(--overlay1);
+}
+
+.th-head__sub kbd {
+  display: inline-block;
+  font: inherit;
+  font-size: 0.6rem;
+  background: var(--surface0);
+  border: 1px solid var(--surface1);
+  border-radius: 3px;
+  padding: 0.05em 0.35em;
+  color: var(--lavender);
+}
+
+.th-head__brand {
+  font-size: 0.65rem;
+  color: var(--overlay0);
+  text-decoration: none;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: var(--surface0);
+  border: 1px solid var(--surface1);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.th-head__brand:hover { color: var(--accent); border-color: var(--accent-line); }
+
+#themes__close {
+  background: transparent;
+  border: none;
+  color: var(--overlay0);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.2rem;
+}
+#themes__close:hover { color: var(--text); }
+
+#themes__list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1.1rem 1.4rem 1.4rem;
+}
+
+.th-group {
+  padding: 0.4rem 0.2rem 0.6rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.th-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.2rem;
+}
+
+.th-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface1);
+  border-radius: 10px;
+  background: var(--base);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
+}
+
+.th-card:hover, .th-card.is-sel {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.th-card.is-current { box-shadow: inset 0 0 0 1px var(--accent); }
+
+.th-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  padding: 11px 12px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--surface0);
+}
+
+.th-thumb__glow {
+  position: absolute;
+  width: 150%;
+  height: 150%;
+  right: -55%;
+  top: -60%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.th-thumb__title {
+  position: relative;
+  font-size: 13px;
+  line-height: 1.1;
+  margin-bottom: 5px;
+}
+
+.th-thumb__rule { position: relative; width: 30px; height: 2px; border-radius: 2px; margin-bottom: 7px; }
+.th-thumb__line { position: relative; height: 2.5px; border-radius: 2px; margin-bottom: 4px; }
+.th-thumb__code {
+  position: relative;
+  margin-top: 6px;
+  border-radius: 4px;
+  padding: 3px 5px;
+  font-size: 7.5px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.th-meta { padding: 8px 10px 10px; }
+.th-meta__top { display: flex; align-items: baseline; gap: 6px; }
+.th-meta__name { flex: 1 1 auto; font-size: 11.5px; color: var(--text); }
+.th-meta__mood {
+  flex: 0 0 auto;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--overlay0);
+}
+.th-meta__blurb {
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: var(--overlay1);
+  margin-top: 3px;
+}
+
+#themes__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1.4rem;
+  border-top: 1px solid var(--surface0);
+  background: var(--mantle);
+  font-size: 0.65rem;
+  color: var(--overlay1);
+}
+
+.th-foot__brand a, #help__foot a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+.th-foot__brand a:hover, #help__foot a:hover {
+  text-decoration: underline;
+}
 
 /* ── Controls overlay ─────────────────────────────────────────────────── */
 #help {
@@ -1129,6 +1384,11 @@ body.laser-on, body.laser-on #board.is-drawing { cursor: none; }
   font-size: 0.66rem;
   color: var(--overlay1);
   line-height: 1.7;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }`;
 
 /** The two faces a deck may override, each `null` for "leave it to the theme". */
@@ -1178,14 +1438,14 @@ export function generateHtml(
   <title>${escAttr(pageTitle)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="${googleFontsHref([theme], [head, body])}" rel="stylesheet">
-  <link rel="stylesheet" href="${hljsHref(theme)}">
+  <link href="${googleFontsHref(THEME_IDS.slice(), [head, body])}" rel="stylesheet">
+  <link rel="stylesheet" id="hljs-theme" href="${hljsHref(theme)}">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   ${richContentHead(rich, presentation.standalone ? "cdn" : "local")}
   <style>
 ${RESET_CSS}
 
-${themeRootCss(theme)}
+${themeSwitchableCss()}
 
 ${sizeRootCss(size)}
 
@@ -1224,6 +1484,7 @@ ${slideHtml}
       <button class="hud-btn" id="btn-pen" title="Draw on the slide (D)">pen <kbd>D</kbd></button>
       <button class="hud-btn" id="btn-blank" title="Blank canvas over the slide (C)">canvas <kbd>C</kbd></button>
       <button class="hud-btn" id="btn-black" title="Black out the screen (B)">black <kbd>B</kbd></button>
+      <button class="hud-btn" id="btn-theme" title="Change theme (T)">theme <kbd>T</kbd></button>
       <div id="pen-bar">
         <span id="hud-sep"></span>
         <span id="pen-swatches"></span>
@@ -1235,13 +1496,33 @@ ${slideHtml}
       </div>
       <button class="hud-btn" id="btn-help" title="Show every control (?)">? controls</button>
     </div>
-    <div id="slide-counter"><span id="cur">1</span>&nbsp;/&nbsp;<span id="tot">${total}</span></div>
+    <div id="hud-right">
+      <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer" class="hud-brand" id="hud-brand" title="deckrun — Markdown presentations">powered by <span>deckrun</span></a>
+      <div id="slide-counter"><span id="cur">1</span>&nbsp;/&nbsp;<span id="tot">${total}</span></div>
+    </div>
   </div>
 </div>
 
 <canvas id="board"></canvas>
 <div id="laser" aria-hidden="true"></div>
 <div id="blackout" title="Click or press B to come back"></div>
+
+<div id="themes" role="dialog" aria-modal="true" aria-label="Theme picker">
+  <div id="themes__backdrop" data-close="themes"></div>
+  <div id="themes__box">
+    <div id="themes__head">
+      <span class="th-head__title">themes</span>
+      <span class="th-head__sub">Arrow keys preview live &nbsp;·&nbsp; enter selects &nbsp;·&nbsp; esc closes</span>
+      <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer" class="th-head__brand" title="deckrun">deckrun</a>
+      <button id="themes__close" data-close="themes" title="Close (Esc)">&times;</button>
+    </div>
+    <div id="themes__list"></div>
+    <div id="themes__foot">
+      <span class="th-foot__brand">powered by <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
+      <span class="th-foot__hint">Switch themes on the fly</span>
+    </div>
+  </div>
+</div>
 
 <div id="help" role="dialog" aria-modal="true" aria-label="Presenter controls">
   <div id="help__backdrop" data-close="help"></div>
@@ -1253,8 +1534,8 @@ ${slideHtml}
     </div>
     <div id="help__grid"></div>
     <div id="help__foot">
-      Annotations live per slide and survive navigation, so you can draw on slide 3,
-      move on, and come back to find it as you left it. Nothing is saved to disk.
+      <span>Annotations live per slide and survive navigation.</span>
+      <span>powered by <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
     </div>
   </div>
 </div>
@@ -1266,13 +1547,14 @@ ${slideHtml}
 
 <div id="overview" class="hidden"></div>
 
-<div id="kbd-hint">← → reveal / navigate &nbsp;·&nbsp; O overview &nbsp;·&nbsp; F fullscreen &nbsp;·&nbsp; L laser &nbsp;·&nbsp; D draw &nbsp;·&nbsp; ? controls</div>
+<div id="kbd-hint">← → reveal / navigate &nbsp;·&nbsp; O overview &nbsp;·&nbsp; F fullscreen &nbsp;·&nbsp; T theme &nbsp;·&nbsp; L laser &nbsp;·&nbsp; D draw &nbsp;·&nbsp; ? controls</div>
 
 ${autoFullscreen ? `<div id="fs-hint">
   <div id="fs-hint__inner">Press any key or click to enter fullscreen</div>
 </div>` : ''}
 
 <script id="deck-notes" type="application/json">${notesJson}</script>
+<script id="deck-themes" type="application/json">${JSON.stringify({ themes: themeSummaries(), hljsMap: JSON.parse(hljsMapJson()), decorMap: JSON.parse(decorMapJson()) })}</script>
 
 <script>
 ${FRAGMENT_RUNTIME}
@@ -1298,6 +1580,7 @@ ${RICH_CONTENT_RUNTIME}
   const elLaser    = document.getElementById('laser');
   const elBlack    = document.getElementById('blackout');
   const elHelp     = document.getElementById('help');
+  const elThemes   = document.getElementById('themes');
   const elPenBar   = document.getElementById('pen-bar');
   const elPenWidth = document.getElementById('pen-width');
 
@@ -1417,8 +1700,6 @@ ${RICH_CONTENT_RUNTIME}
     const count = fragmentsAt(cur).length;
     elBtnPrev.style.opacity = cur === 0 && step === 0 ? '0.2' : '1';
     elBtnNext.style.opacity = cur === total - 1 && step >= count ? '0.2' : '1';
-    elBtnPrev.style.opacity = cur === 0 ? '0.2' : '1';
-    elBtnNext.style.opacity = cur === total - 1 ? '0.2' : '1';
     post({ type: 'state', index: cur, total: total });
   }
 
@@ -1560,6 +1841,7 @@ ${RICH_CONTENT_RUNTIME}
     pen:   document.getElementById('btn-pen'),
     blank: document.getElementById('btn-blank'),
     black: document.getElementById('btn-black'),
+    theme: document.getElementById('btn-theme'),
     erase: document.getElementById('btn-erase'),
   };
 
@@ -1747,6 +2029,7 @@ ${RICH_CONTENT_RUNTIME}
     tools.pen.classList.toggle('is-on', penOn);
     tools.blank.classList.toggle('is-on', blankOn);
     tools.black.classList.toggle('is-on', blackOn);
+    if (tools.theme) tools.theme.classList.toggle('is-on', themesOpen());
     tools.erase.classList.toggle('is-on', eraseOn);
 
     elBoard.classList.toggle('is-drawing', penOn);
@@ -1763,6 +2046,200 @@ ${RICH_CONTENT_RUNTIME}
     document.body.classList.toggle('laser-on', laserOn);
     elBlack.classList.toggle('is-on', blackOn);
     elHelp.classList.toggle('is-on', helpOn);
+  }
+
+  // ── Theme picker ─────────────────────────────────────────────────────
+  let themeBootstrap = { themes: [], hljsMap: {}, decorMap: {} };
+  try {
+    const elBt = document.getElementById('deck-themes');
+    if (elBt) themeBootstrap = JSON.parse(elBt.textContent || '{}');
+  } catch (e) {}
+  const themeList = themeBootstrap.themes || [];
+  const hljsMap = themeBootstrap.hljsMap || {};
+  const decorMap = themeBootstrap.decorMap || {};
+  const THEME_DATA = Object.fromEntries(themeList.map(function (t) { return [t.id, t]; }));
+  let activeTheme = document.documentElement.dataset.theme || 'nord';
+  let themeCommitted = activeTheme;
+  let themeSel = 0;
+  let themeCards = [];
+
+  function themeThumb(t) {
+    const c = t.colors;
+    const wrap = document.createElement('div');
+    wrap.className = 'th-thumb';
+    wrap.style.background = c.crust;
+    wrap.style.color = c.text;
+
+    const glow = document.createElement('div');
+    glow.className = 'th-thumb__glow';
+    glow.style.background = 'radial-gradient(circle, ' + c.accent + ' 0%, transparent 70%)';
+    glow.style.opacity = t.mood === 'dark' ? '0.22' : '0.12';
+    wrap.appendChild(glow);
+
+    const title = document.createElement('div');
+    title.className = 'th-thumb__title';
+    title.textContent = t.label;
+    title.style.fontFamily = t.fonts.display;
+    title.style.color = c.accent;
+    wrap.appendChild(title);
+
+    const rule = document.createElement('div');
+    rule.className = 'th-thumb__rule';
+    rule.style.background = c.accent2;
+    wrap.appendChild(rule);
+
+    [75, 55].forEach(function (w) {
+      const line = document.createElement('div');
+      line.className = 'th-thumb__line';
+      line.style.width = w + '%';
+      line.style.background = c.surface0;
+      wrap.appendChild(line);
+    });
+
+    const code = document.createElement('div');
+    code.className = 'th-thumb__code';
+    code.textContent = 'const deck = md';
+    code.style.fontFamily = t.fonts.mono;
+    code.style.background = c.mantle;
+    code.style.color = c.accent3;
+    code.style.border = '1px solid ' + c.surface0;
+    wrap.appendChild(code);
+
+    return wrap;
+  }
+
+  function themeCard(t) {
+    const card = document.createElement('button');
+    card.className = 'th-card' + (t.id === activeTheme ? ' is-current' : '');
+    card.dataset.theme = t.id;
+    card.appendChild(themeThumb(t));
+
+    const meta = document.createElement('div');
+    meta.className = 'th-meta';
+
+    const top = document.createElement('div');
+    top.className = 'th-meta__top';
+    const name = document.createElement('span');
+    name.className = 'th-meta__name';
+    name.textContent = t.label;
+    const mood = document.createElement('span');
+    mood.className = 'th-meta__mood';
+    mood.textContent = t.mood;
+    top.appendChild(name);
+    top.appendChild(mood);
+
+    const blurb = document.createElement('div');
+    blurb.className = 'th-meta__blurb';
+    blurb.textContent = t.blurb;
+
+    meta.appendChild(top);
+    meta.appendChild(blurb);
+    card.appendChild(meta);
+    return card;
+  }
+
+  function buildThemePicker() {
+    const host = document.getElementById('themes__list');
+    if (!host) return;
+    host.innerHTML = '';
+    themeCards = [];
+
+    [['dark', 'dark palettes'], ['light', 'light palettes']].forEach(function (pair) {
+      const list = themeList.filter(function (t) { return t.mood === pair[0]; });
+      if (!list.length) return;
+
+      const label = document.createElement('div');
+      label.className = 'th-group';
+      label.textContent = pair[1];
+      host.appendChild(label);
+
+      const grid = document.createElement('div');
+      grid.className = 'th-grid';
+      list.forEach(function (t) {
+        const card = themeCard(t);
+        card.addEventListener('mouseenter', function () { selectTheme(themeCards.indexOf(card)); });
+        card.addEventListener('click', function () { selectTheme(themeCards.indexOf(card)); commitTheme(); });
+        grid.appendChild(card);
+        themeCards.push(card);
+      });
+      host.appendChild(grid);
+    });
+  }
+
+  function updateThemePenColors() {
+    const rs = getComputedStyle(document.documentElement);
+    function tc(name, fb) {
+      const v = rs.getPropertyValue('--' + name).trim();
+      return v || fb;
+    }
+    PEN_COLORS[0] = tc('red',    '#f38ba8');
+    PEN_COLORS[1] = tc('yellow', '#f9e2af');
+    PEN_COLORS[2] = tc('green',  '#a6e3a1');
+    PEN_COLORS[3] = tc('blue',   '#89b4fa');
+    PEN_COLORS[4] = tc('text',   '#cdd6f4');
+    swatches.forEach(function (sw, i) {
+      if (sw && PEN_COLORS[i]) sw.style.background = PEN_COLORS[i];
+    });
+  }
+
+  function setTheme(id, remember) {
+    if (!id || !THEME_DATA[id]) return;
+    activeTheme = id;
+    document.documentElement.dataset.theme = id;
+    document.documentElement.dataset.decor = decorMap[id] || 'orbs';
+    const hljsLink = document.getElementById('hljs-theme');
+    if (hljsLink && hljsMap[id]) {
+      hljsLink.href = hljsMap[id];
+    }
+    updateThemePenColors();
+    if (remember !== false) {
+      try { localStorage.setItem('deckrun.theme.v1', id); } catch (e) {}
+    }
+    if (themeCards.length) {
+      themeCards.forEach(function (card) {
+        card.classList.toggle('is-current', card.dataset.theme === id);
+      });
+    }
+    post({ type: 'theme', theme: id });
+  }
+
+  function selectTheme(i) {
+    if (i < 0 || i >= themeCards.length) return;
+    themeSel = i;
+    themeCards.forEach(function (c, n) { c.classList.toggle('is-sel', n === i); });
+    setTheme(themeCards[i].dataset.theme, false);
+  }
+
+  function openThemes() {
+    if (helpOn) setHelp(false);
+    if (inOverview) toggleOverview(false);
+    themeCommitted = activeTheme;
+    buildThemePicker();
+    let at = 0;
+    themeCards.forEach(function (c, n) { if (c.dataset.theme === activeTheme) at = n; });
+    elThemes.classList.add('is-on');
+    syncTools();
+    selectTheme(at);
+    if (themeCards[themeSel]) themeCards[themeSel].scrollIntoView({ block: 'nearest' });
+  }
+
+  function commitTheme() {
+    themeCommitted = activeTheme;
+    setTheme(activeTheme, true);
+    closeThemes(false);
+  }
+
+  function closeThemes(restore) {
+    if (restore && themeCommitted && themeCommitted !== activeTheme) {
+      setTheme(themeCommitted, true);
+    }
+    elThemes.classList.remove('is-on');
+    syncTools();
+    themeCards.forEach(function (c) { c.classList.remove('is-sel'); });
+  }
+
+  function themesOpen() {
+    return elThemes ? elThemes.classList.contains('is-on') : false;
   }
 
   // ── Laser pointer ────────────────────────────────────────────────────
@@ -1783,6 +2260,7 @@ ${RICH_CONTENT_RUNTIME}
     ]},
     { title: 'screen', rows: [
       { keys: ['F'],                      desc: 'Fullscreen' },
+      { keys: ['T'],                      desc: 'Theme picker' },
       { keys: ['B'],                      desc: 'Black out the screen' },
       { keys: ['?'],                      desc: 'These controls' },
     ]},
@@ -1852,11 +2330,16 @@ ${RICH_CONTENT_RUNTIME}
   onClick(tools.blank, function () { setBlank(!blankOn); });
   onClick(tools.black, function () { setBlack(true); });
   onClick(tools.erase, function () { setEraser(!eraseOn); });
+  onClick(tools.theme, function () { themesOpen() ? closeThemes(false) : openThemes(); });
   onClick(document.getElementById('btn-thin'),  function () { nudgeWidth(-1); });
   onClick(document.getElementById('btn-thick'), function () { nudgeWidth(1); });
   onClick(document.getElementById('btn-clear'), function () { clearSlide(); });
   onClick(document.getElementById('btn-help'),  function () { setHelp(!helpOn); });
   onClick(elBlack, function () { setBlack(false); });
+
+  Array.prototype.forEach.call(elThemes.querySelectorAll('[data-close="themes"]'), function (el) {
+    onClick(el, function () { closeThemes(false); });
+  });
 
   Array.prototype.forEach.call(elHelp.querySelectorAll('[data-close="help"]'), function (el) {
     onClick(el, function () { setHelp(false); });
@@ -1868,16 +2351,55 @@ ${RICH_CONTENT_RUNTIME}
   document.addEventListener('keydown', function (e) {
     const k = e.key;
 
-    // Undo is the only modifier combo we claim; the rest is the browser's.
+    // Undo and PDF/Print modifier combos
     if (e.metaKey || e.ctrlKey || e.altKey) {
       if ((k === 'z' || k === 'Z') && hasInk()) {
         e.preventDefault();
         undoStroke();
+        return;
+      }
+      if (k === 'p' || k === 'P') {
+        e.preventDefault();
+        triggerPdfExport();
+        return;
       }
       return;
     }
 
     // Each overlay swallows keys until it is dismissed, outermost first.
+    if (themesOpen()) {
+      if (k === 'Escape') {
+        e.preventDefault();
+        closeThemes(true);
+        return;
+      }
+      if (k === 'Enter') {
+        e.preventDefault();
+        commitTheme();
+        return;
+      }
+      if (k === 'ArrowRight' || k === 'ArrowDown') {
+        e.preventDefault();
+        const nextIdx = (themeSel + 1) % themeCards.length;
+        selectTheme(nextIdx);
+        if (themeCards[nextIdx]) themeCards[nextIdx].scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (k === 'ArrowLeft' || k === 'ArrowUp') {
+        e.preventDefault();
+        const prevIdx = (themeSel - 1 + themeCards.length) % themeCards.length;
+        selectTheme(prevIdx);
+        if (themeCards[prevIdx]) themeCards[prevIdx].scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (k === 't' || k === 'T') {
+        e.preventDefault();
+        closeThemes(false);
+        return;
+      }
+      return;
+    }
+
     if (helpOn) {
       if (k === 'Escape' || k === '?' || k === 'h' || k === 'H') {
         e.preventDefault();
@@ -1949,6 +2471,11 @@ ${RICH_CONTENT_RUNTIME}
         e.preventDefault();
         toggleFullscreen();
         break;
+      case 't':
+      case 'T':
+        e.preventDefault();
+        openThemes();
+        break;
       case 'l':
       case 'L':
         e.preventDefault();
@@ -1971,8 +2498,9 @@ ${RICH_CONTENT_RUNTIME}
         break;
       case 'Escape':
         e.preventDefault();
-        // Peel one layer at a time: canvas, pen, laser, then the overview.
-        if (blankOn) setBlank(false);
+        // Peel one layer at a time: themes, canvas, pen, laser, then the overview.
+        if (themesOpen()) closeThemes(true);
+        else if (blankOn) setBlank(false);
         else if (penOn) setPen(false);
         else if (laserOn) setLaser(false);
         else toggleOverview();
@@ -2057,6 +2585,32 @@ ${RICH_CONTENT_RUNTIME}
     }, { once: true });
   }
 
+  // ── PDF export / Print intercept ───────────────────────────────────────────
+  function triggerPdfExport() {
+    fetch('/__pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      .then(function (r) {
+        if (r.ok) return r.blob();
+        throw new Error('Server PDF unavailable');
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        var title = (document.title || 'deck').replace(/[\s/\\?%*:|"<>]+/g, '-').toLowerCase();
+        a.download = (title.endsWith('.pdf') ? title : title + '.pdf');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+      })
+      .catch(function () {
+        var fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+        Promise.all([richReady, fontsReady]).then(function () {
+          setTimeout(function () { window.print(); }, 150);
+        });
+      });
+  }
+
   // ── Print export ─────────────────────────────────────────────────────
   // Loading the deck with ?print=1 opens the print dialog once fonts and
   // highlighting have settled. The editor's PDF export uses this.
@@ -2114,18 +2668,19 @@ export function generateDocHtml(
 
   const pageTitle = title ? (title.toLowerCase().includes("deckrun") ? title : `${title} · deckrun`) : "deckrun";
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}">
+<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escAttr(pageTitle)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="${googleFontsHref([theme])}" rel="stylesheet">
+  <link href="${googleFontsHref(THEME_IDS.slice())}" rel="stylesheet">
+  <link rel="stylesheet" id="hljs-theme" href="${hljsHref(theme)}">
   <style>
 ${RESET_CSS}
 
-${themeRootCss(theme)}
+${themeSwitchableCss()}
 
 ${DOC_CSS}
 
@@ -2145,6 +2700,7 @@ ${PRESENTER_CSS}
       <button class="hud-btn" id="btn-pen" title="Draw on the doc (D)">pen <kbd>D</kbd></button>
       <button class="hud-btn" id="btn-blank" title="Blank canvas over the doc (C)">canvas <kbd>C</kbd></button>
       <button class="hud-btn" id="btn-black" title="Black out the screen (B)">black <kbd>B</kbd></button>
+      <button class="hud-btn" id="btn-theme" title="Change theme (T)">theme <kbd>T</kbd></button>
       <div id="pen-bar">
         <span id="hud-sep"></span>
         <span id="pen-swatches"></span>
@@ -2156,12 +2712,32 @@ ${PRESENTER_CSS}
       </div>
       <button class="hud-btn" id="btn-help" title="Show every control (?)">? controls</button>
     </div>
+    <div id="hud-right">
+      <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer" class="hud-brand" id="hud-brand" title="deckrun — Markdown presentations">powered by <span>deckrun</span></a>
+    </div>
   </div>
 </div>
 
 <canvas id="board"></canvas>
 <div id="laser" aria-hidden="true"></div>
 <div id="blackout" title="Click or press B to come back"></div>
+
+<div id="themes" role="dialog" aria-modal="true" aria-label="Theme picker">
+  <div id="themes__backdrop" data-close="themes"></div>
+  <div id="themes__box">
+    <div id="themes__head">
+      <span class="th-head__title">themes</span>
+      <span class="th-head__sub">Arrow keys preview live &nbsp;·&nbsp; enter selects &nbsp;·&nbsp; esc closes</span>
+      <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer" class="th-head__brand" title="deckrun">deckrun</a>
+      <button id="themes__close" data-close="themes" title="Close (Esc)">&times;</button>
+    </div>
+    <div id="themes__list"></div>
+    <div id="themes__foot">
+      <span class="th-foot__brand">powered by <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
+      <span class="th-foot__hint">Switch themes on the fly</span>
+    </div>
+  </div>
+</div>
 
 <div id="help" role="dialog" aria-modal="true" aria-label="Presenter controls">
   <div id="help__backdrop" data-close="help"></div>
@@ -2173,7 +2749,8 @@ ${PRESENTER_CSS}
     </div>
     <div id="help__grid"></div>
     <div id="help__foot">
-      Annotations are not saved to disk, and reset if the page reloads.
+      <span>Annotations are not saved to disk, and reset if the page reloads.</span>
+      <span>powered by <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
     </div>
   </div>
 </div>
@@ -2181,6 +2758,8 @@ ${PRESENTER_CSS}
 ${autoFullscreen ? `<div id="fs-hint">
   <div id="fs-hint__inner">Press any key or click to enter fullscreen</div>
 </div>` : ''}
+
+<script id="deck-themes" type="application/json">${JSON.stringify({ themes: themeSummaries(), hljsMap: JSON.parse(hljsMapJson()), decorMap: JSON.parse(decorMapJson()) })}</script>
 
 <script>
 (function () {
@@ -2190,6 +2769,7 @@ ${autoFullscreen ? `<div id="fs-hint">
   const elLaser    = document.getElementById('laser');
   const elBlack    = document.getElementById('blackout');
   const elHelp     = document.getElementById('help');
+  const elThemes   = document.getElementById('themes');
   const elPenBar   = document.getElementById('pen-bar');
   const elPenWidth = document.getElementById('pen-width');
   const elFrame    = document.getElementById('doc-frame');
@@ -2232,6 +2812,7 @@ ${autoFullscreen ? `<div id="fs-hint">
     pen:   document.getElementById('btn-pen'),
     blank: document.getElementById('btn-blank'),
     black: document.getElementById('btn-black'),
+    theme: document.getElementById('btn-theme'),
     erase: document.getElementById('btn-erase'),
   };
 
@@ -2416,6 +2997,7 @@ ${autoFullscreen ? `<div id="fs-hint">
     tools.pen.classList.toggle('is-on', penOn);
     tools.blank.classList.toggle('is-on', blankOn);
     tools.black.classList.toggle('is-on', blackOn);
+    if (tools.theme) tools.theme.classList.toggle('is-on', themesOpen());
     tools.erase.classList.toggle('is-on', eraseOn);
 
     elBoard.classList.toggle('is-drawing', penOn);
@@ -2434,6 +3016,208 @@ ${autoFullscreen ? `<div id="fs-hint">
     elHelp.classList.toggle('is-on', helpOn);
   }
 
+  // ── Theme picker ─────────────────────────────────────────────────────
+  let themeBootstrap = { themes: [], hljsMap: {}, decorMap: {} };
+  try {
+    const elBt = document.getElementById('deck-themes');
+    if (elBt) themeBootstrap = JSON.parse(elBt.textContent || '{}');
+  } catch (e) {}
+  const themeList = themeBootstrap.themes || [];
+  const hljsMap = themeBootstrap.hljsMap || {};
+  const decorMap = themeBootstrap.decorMap || {};
+  const THEME_DATA = Object.fromEntries(themeList.map(function (t) { return [t.id, t]; }));
+  let activeTheme = document.documentElement.dataset.theme || 'nord';
+  let themeCommitted = activeTheme;
+  let themeSel = 0;
+  let themeCards = [];
+
+  function themeThumb(t) {
+    const c = t.colors;
+    const wrap = document.createElement('div');
+    wrap.className = 'th-thumb';
+    wrap.style.background = c.crust;
+    wrap.style.color = c.text;
+
+    const glow = document.createElement('div');
+    glow.className = 'th-thumb__glow';
+    glow.style.background = 'radial-gradient(circle, ' + c.accent + ' 0%, transparent 70%)';
+    glow.style.opacity = t.mood === 'dark' ? '0.22' : '0.12';
+    wrap.appendChild(glow);
+
+    const title = document.createElement('div');
+    title.className = 'th-thumb__title';
+    title.textContent = t.label;
+    title.style.fontFamily = t.fonts.display;
+    title.style.color = c.accent;
+    wrap.appendChild(title);
+
+    const rule = document.createElement('div');
+    rule.className = 'th-thumb__rule';
+    rule.style.background = c.accent2;
+    wrap.appendChild(rule);
+
+    [75, 55].forEach(function (w) {
+      const line = document.createElement('div');
+      line.className = 'th-thumb__line';
+      line.style.width = w + '%';
+      line.style.background = c.surface0;
+      wrap.appendChild(line);
+    });
+
+    const code = document.createElement('div');
+    code.className = 'th-thumb__code';
+    code.textContent = 'const deck = md';
+    code.style.fontFamily = t.fonts.mono;
+    code.style.background = c.mantle;
+    code.style.color = c.accent3;
+    code.style.border = '1px solid ' + c.surface0;
+    wrap.appendChild(code);
+
+    return wrap;
+  }
+
+  function themeCard(t) {
+    const card = document.createElement('button');
+    card.className = 'th-card' + (t.id === activeTheme ? ' is-current' : '');
+    card.dataset.theme = t.id;
+    card.appendChild(themeThumb(t));
+
+    const meta = document.createElement('div');
+    meta.className = 'th-meta';
+
+    const top = document.createElement('div');
+    top.className = 'th-meta__top';
+    const name = document.createElement('span');
+    name.className = 'th-meta__name';
+    name.textContent = t.label;
+    const mood = document.createElement('span');
+    mood.className = 'th-meta__mood';
+    mood.textContent = t.mood;
+    top.appendChild(name);
+    top.appendChild(mood);
+
+    const blurb = document.createElement('div');
+    blurb.className = 'th-meta__blurb';
+    blurb.textContent = t.blurb;
+
+    meta.appendChild(top);
+    meta.appendChild(blurb);
+    card.appendChild(meta);
+    return card;
+  }
+
+  function buildThemePicker() {
+    const host = document.getElementById('themes__list');
+    if (!host) return;
+    host.innerHTML = '';
+    themeCards = [];
+
+    [['dark', 'dark palettes'], ['light', 'light palettes']].forEach(function (pair) {
+      const list = themeList.filter(function (t) { return t.mood === pair[0]; });
+      if (!list.length) return;
+
+      const label = document.createElement('div');
+      label.className = 'th-group';
+      label.textContent = pair[1];
+      host.appendChild(label);
+
+      const grid = document.createElement('div');
+      grid.className = 'th-grid';
+      list.forEach(function (t) {
+        const card = themeCard(t);
+        card.addEventListener('mouseenter', function () { selectTheme(themeCards.indexOf(card)); });
+        card.addEventListener('click', function () { selectTheme(themeCards.indexOf(card)); commitTheme(); });
+        grid.appendChild(card);
+        themeCards.push(card);
+      });
+      host.appendChild(grid);
+    });
+  }
+
+  function updateThemePenColors() {
+    const rs = getComputedStyle(document.documentElement);
+    function tc(name, fb) {
+      const v = rs.getPropertyValue('--' + name).trim();
+      return v || fb;
+    }
+    PEN_COLORS[0] = tc('red',    '#f38ba8');
+    PEN_COLORS[1] = tc('yellow', '#f9e2af');
+    PEN_COLORS[2] = tc('green',  '#a6e3a1');
+    PEN_COLORS[3] = tc('blue',   '#89b4fa');
+    PEN_COLORS[4] = tc('text',   '#cdd6f4');
+    swatches.forEach(function (sw, i) {
+      if (sw && PEN_COLORS[i]) sw.style.background = PEN_COLORS[i];
+    });
+  }
+
+  function setTheme(id, remember) {
+    if (!id || !THEME_DATA[id]) return;
+    activeTheme = id;
+    document.documentElement.dataset.theme = id;
+    document.documentElement.dataset.decor = decorMap[id] || 'orbs';
+    const hljsLink = document.getElementById('hljs-theme');
+    if (hljsLink && hljsMap[id]) {
+      hljsLink.href = hljsMap[id];
+    }
+    try {
+      if (elFrame && elFrame.contentDocument && elFrame.contentDocument.documentElement) {
+        elFrame.contentDocument.documentElement.dataset.theme = id;
+      }
+    } catch (e) {}
+    try {
+      if (elFrame && elFrame.contentWindow) {
+        elFrame.contentWindow.postMessage({ type: 'theme', theme: id }, '*');
+      }
+    } catch (e) {}
+    updateThemePenColors();
+    if (remember !== false) {
+      try { localStorage.setItem('deckrun.theme.v1', id); } catch (e) {}
+    }
+    if (themeCards.length) {
+      themeCards.forEach(function (card) {
+        card.classList.toggle('is-current', card.dataset.theme === id);
+      });
+    }
+  }
+
+  function selectTheme(i) {
+    if (i < 0 || i >= themeCards.length) return;
+    themeSel = i;
+    themeCards.forEach(function (c, n) { c.classList.toggle('is-sel', n === i); });
+    setTheme(themeCards[i].dataset.theme, false);
+  }
+
+  function openThemes() {
+    if (helpOn) setHelp(false);
+    themeCommitted = activeTheme;
+    buildThemePicker();
+    let at = 0;
+    themeCards.forEach(function (c, n) { if (c.dataset.theme === activeTheme) at = n; });
+    elThemes.classList.add('is-on');
+    syncTools();
+    selectTheme(at);
+    if (themeCards[themeSel]) themeCards[themeSel].scrollIntoView({ block: 'nearest' });
+  }
+
+  function commitTheme() {
+    themeCommitted = activeTheme;
+    setTheme(activeTheme, true);
+    closeThemes(false);
+  }
+
+  function closeThemes(restore) {
+    if (restore && themeCommitted && themeCommitted !== activeTheme) {
+      setTheme(themeCommitted, true);
+    }
+    elThemes.classList.remove('is-on');
+    syncTools();
+    themeCards.forEach(function (c) { c.classList.remove('is-sel'); });
+  }
+
+  function themesOpen() {
+    return elThemes ? elThemes.classList.contains('is-on') : false;
+  }
+
   // ── Laser pointer ────────────────────────────────────────────────────
   // Same-origin doc, no border on the iframe: client coordinates line up
   // with the outer viewport, so no translation is needed either way.
@@ -2447,6 +3231,7 @@ ${autoFullscreen ? `<div id="fs-hint">
   const HELP_GROUPS = [
     { title: 'screen', rows: [
       { keys: ['F'],                      desc: 'Fullscreen' },
+      { keys: ['T'],                      desc: 'Theme picker' },
       { keys: ['B'],                      desc: 'Black out the screen' },
       { keys: ['Esc'],                    desc: 'Close what is open' },
       { keys: ['?'],                      desc: 'These controls' },
@@ -2517,11 +3302,16 @@ ${autoFullscreen ? `<div id="fs-hint">
   onClick(tools.blank, function () { setBlank(!blankOn); });
   onClick(tools.black, function () { setBlack(true); });
   onClick(tools.erase, function () { setEraser(!eraseOn); });
+  onClick(tools.theme, function () { themesOpen() ? closeThemes(false) : openThemes(); });
   onClick(document.getElementById('btn-thin'),  function () { nudgeWidth(-1); });
   onClick(document.getElementById('btn-thick'), function () { nudgeWidth(1); });
   onClick(document.getElementById('btn-clear'), function () { clearBoard(); });
   onClick(document.getElementById('btn-help'),  function () { setHelp(!helpOn); });
   onClick(elBlack, function () { setBlack(false); });
+
+  Array.prototype.forEach.call(elThemes.querySelectorAll('[data-close="themes"]'), function (el) {
+    onClick(el, function () { closeThemes(false); });
+  });
 
   Array.prototype.forEach.call(elHelp.querySelectorAll('[data-close="help"]'), function (el) {
     onClick(el, function () { setHelp(false); });
@@ -2533,16 +3323,73 @@ ${autoFullscreen ? `<div id="fs-hint">
   function onKeydown(e) {
     const k = e.key;
 
-    // Undo is the only modifier combo we claim; the rest is the browser's.
+    // Undo and PDF/Print modifier combos
     if (e.metaKey || e.ctrlKey || e.altKey) {
       if ((k === 'z' || k === 'Z') && hasInk()) {
         e.preventDefault();
         undoStroke();
+        return;
+      }
+      if (k === 'p' || k === 'P') {
+        e.preventDefault();
+        fetch('/__pdf-doc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: document.title })
+        })
+          .then(function (r) { if (r.ok) return r.blob(); throw new Error('PDF unavailable'); })
+          .then(function (blob) {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'document.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+          })
+          .catch(function () {
+            window.print();
+          });
+        return;
       }
       return;
     }
 
     // Each overlay swallows keys until it is dismissed, outermost first.
+    if (themesOpen()) {
+      if (k === 'Escape') {
+        e.preventDefault();
+        closeThemes(true);
+        return;
+      }
+      if (k === 'Enter') {
+        e.preventDefault();
+        commitTheme();
+        return;
+      }
+      if (k === 'ArrowRight' || k === 'ArrowDown') {
+        e.preventDefault();
+        const nextIdx = (themeSel + 1) % themeCards.length;
+        selectTheme(nextIdx);
+        if (themeCards[nextIdx]) themeCards[nextIdx].scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (k === 'ArrowLeft' || k === 'ArrowUp') {
+        e.preventDefault();
+        const prevIdx = (themeSel - 1 + themeCards.length) % themeCards.length;
+        selectTheme(prevIdx);
+        if (themeCards[prevIdx]) themeCards[prevIdx].scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (k === 't' || k === 'T') {
+        e.preventDefault();
+        closeThemes(false);
+        return;
+      }
+      return;
+    }
+
     if (helpOn) {
       if (k === 'Escape' || k === '?' || k === 'h' || k === 'H') {
         e.preventDefault();
@@ -2584,6 +3431,11 @@ ${autoFullscreen ? `<div id="fs-hint">
         e.preventDefault();
         toggleFullscreen();
         break;
+      case 't':
+      case 'T':
+        e.preventDefault();
+        openThemes();
+        break;
       case 'l':
       case 'L':
         e.preventDefault();
@@ -2601,8 +3453,9 @@ ${autoFullscreen ? `<div id="fs-hint">
         break;
       case 'Escape':
         e.preventDefault();
-        // Peel one layer at a time: canvas, pen, laser.
-        if (blankOn) setBlank(false);
+        // Peel one layer at a time: themes, canvas, pen, laser.
+        if (themesOpen()) closeThemes(true);
+        else if (blankOn) setBlank(false);
         else if (penOn) setPen(false);
         else if (laserOn) setLaser(false);
         break;

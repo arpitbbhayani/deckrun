@@ -637,6 +637,8 @@ function themeVars(t: Theme): string {
     ["glow", alpha(accent, dark ? 0.34 : 0.22)],
     ["gradient", `linear-gradient(115deg, ${accent}, ${accent2} 58%, ${accent3})`],
     ["accent-fade", `linear-gradient(90deg, ${accent}, ${alpha(accent, 0.45)} 62%, transparent)`],
+    ["selection-bg", alpha(accent, dark ? 0.38 : 0.28)],
+    ["selection-text", "inherit"],
 
     ["surface-soft", alpha(n.surface0, dark ? 0.34 : 0.42)],
     ["crust-overlay", alpha(n.crust, dark ? 0.84 : 0.88)],
