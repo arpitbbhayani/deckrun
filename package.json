@@ -9,10 +9,13 @@
   "files": [
     "dist/"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "npm run build && node --test"
+    "test": "npm run build && tsx --test src/*.test.ts"
   },
   "dependencies": {
     "commander": "^11.1.0",

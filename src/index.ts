@@ -7,7 +7,7 @@ import { resolve, dirname, basename, extname, join, isAbsolute, relative } from 
 import { Command } from "commander";
 import open from "open";
 import { parseSlides, type Slide } from "./parser.js";
-import { generateHtml, generateDocHtml, renderSlide } from "./generate.js";
+import { generateHtml, generateDocHtml, injectDocBridge, renderSlide } from "./generate.js";
 import {
   DEFAULT_SIZE,
   DEFAULT_THEME,
@@ -40,8 +40,18 @@ import {
   type TransitionName,
 } from "./presentation-options.js";
 import { lintMarkdown, type LintIssue } from "./lint.js";
+import {
+  AiError,
+  generateAiPresentation,
+  listAiModels,
+  validateAiConnection,
+  type AiGenerateInput,
+} from "./ai.js";
+import { AiSessionStore } from "./ai-session.js";
 
 const moduleRequire = createRequire(import.meta.url);
+const aiSessions = new AiSessionStore();
+const aiInflight = new Map<string, AbortController>();
 
 const c = {
   reset:  "\x1b[0m",
@@ -87,6 +97,42 @@ const MIME: Record<string, string> = {
 
 function getMime(filepath: string): string {
   return MIME[extname(filepath).toLowerCase()] ?? "application/octet-stream";
+}
+
+/** Files that should never become readable merely because Deckrun launched nearby. */
+function isSensitiveLocalPath(pathname: string): boolean {
+  // Both separators matter here: path.resolve treats backslashes as path
+  // boundaries on Windows even though they arrived in a URL segment.
+  const segments = pathname.split(/[\\/]+/).filter(Boolean);
+  return segments.some((segment) => {
+    const name = segment.toLowerCase();
+    return (
+      name.startsWith(".") ||
+      name === "credentials" ||
+      name === "credentials.json" ||
+      name === "id_rsa" ||
+      name === "id_ed25519" ||
+      /\.(?:pem|key|p12|pfx)$/.test(name)
+    );
+  });
+}
+
+/** Block persistent workers in every mode and top-level local HTML in the editor. */
+function isBlockedLocalDiskRequest(
+  pathname: string,
+  req: IncomingMessage,
+  editorMode: boolean
+): boolean {
+  const extension = extname(pathname).toLowerCase();
+  const destination = req.headers["sec-fetch-dest"];
+  if (
+    editorMode &&
+    (extension === ".html" || extension === ".htm") &&
+    destination === "document"
+  ) {
+    return true;
+  }
+  return (extension === ".js" || extension === ".mjs") && destination === "serviceworker";
 }
 
 async function findFreePort(preferred: number): Promise<number> {
@@ -162,6 +208,7 @@ function sendHtml(res: ServerResponse, html: string): void {
   res.writeHead(200, {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
   });
   res.end(html);
 }
@@ -172,6 +219,62 @@ function sendJson(res: ServerResponse, payload: unknown): void {
     "Cache-Control": "no-store",
   });
   res.end(JSON.stringify(payload));
+}
+
+function sendJsonStatus(res: ServerResponse, status: number, payload: unknown): void {
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  res.end(JSON.stringify(payload));
+}
+
+function trustedAiRequest(mode: EditorMode, req: IncomingMessage): boolean {
+  const marker = req.headers["x-deckrun-ai"];
+  const origin = req.headers.origin;
+  const fetchSite = req.headers["sec-fetch-site"];
+  const contentType = req.headers["content-type"] ?? "";
+  return (
+    marker === "1" &&
+    !!mode.origin &&
+    origin === mode.origin &&
+    (fetchSite === undefined || fetchSite === "same-origin") &&
+    typeof contentType === "string" &&
+    contentType.toLowerCase().startsWith("application/json")
+  );
+}
+
+function sendAiFailure(res: ServerResponse, error: unknown): void {
+  if (res.headersSent || res.writableEnded || res.destroyed) return;
+  if (error instanceof AiError) {
+    sendJsonStatus(res, error.status, error.toJSON());
+    return;
+  }
+  sendJsonStatus(res, 500, {
+    error: "ai_failed",
+    detail: "The AI request failed before it completed.",
+  });
+}
+
+function clientAbortSignal(
+  req: IncomingMessage,
+  res: ServerResponse
+): { controller: AbortController; signal: AbortSignal; dispose: () => void } {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const close = () => {
+    if (!res.writableEnded) controller.abort();
+  };
+  req.once("aborted", abort);
+  res.once("close", close);
+  return {
+    controller,
+    signal: controller.signal,
+    dispose: () => {
+      req.off("aborted", abort);
+      res.off("close", close);
+    },
+  };
 }
 
 interface DeckMode {
@@ -259,6 +362,134 @@ async function handleEditorRoute(
       res,
       generatePreviewHtml(mode.theme, mode.size, mode.fonts, mode.template, mode.transition)
     );
+    return true;
+  }
+
+  if (pathname.startsWith("/__ai/")) {
+    if (req.method !== "POST") {
+      sendJsonStatus(res, 405, { error: "method_not_allowed", detail: "Use POST for AI requests." });
+      return true;
+    }
+    if (!trustedAiRequest(mode, req)) {
+      sendJsonStatus(res, 403, {
+        error: "forbidden",
+        detail: "This AI request did not come from the local Deckrun editor.",
+      });
+      return true;
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(await readBody(req)) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("invalid body");
+      }
+      body = parsed as Record<string, unknown>;
+    } catch {
+      sendJsonStatus(res, 400, { error: "invalid_json", detail: "Send a valid JSON request." });
+      return true;
+    }
+
+    if (pathname === "/__ai/connect") {
+      const client = clientAbortSignal(req, res);
+      try {
+        const connection = validateAiConnection(body.provider, body.apiKey);
+        const manual = body.manualModel === true;
+        // Normal connections verify the credential by listing models first.
+        // Restricted keys can explicitly skip that permission and be verified
+        // by their first generation request instead.
+        const models = manual
+          ? []
+          : await listAiModels(connection.provider, connection.apiKey, {
+              signal: client.signal,
+            });
+        if (client.signal.aborted) return true;
+        const sessionId = aiSessions.create(connection.provider, connection.apiKey);
+        sendJson(res, { sessionId, provider: connection.provider, models, manual });
+      } catch (error) {
+        sendAiFailure(res, error);
+      } finally {
+        client.dispose();
+      }
+      return true;
+    }
+
+    const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
+    if (pathname === "/__ai/disconnect") {
+      if (sessionId) {
+        aiInflight.get(sessionId)?.abort();
+        aiSessions.delete(sessionId);
+        aiInflight.delete(sessionId);
+      }
+      sendJson(res, { ok: true });
+      return true;
+    }
+
+    const session = aiSessions.get(sessionId);
+    if (!session) {
+      sendJsonStatus(res, 401, {
+        error: "ai_session_expired",
+        detail: "The API-key session expired. Connect the provider again.",
+      });
+      return true;
+    }
+
+    if (pathname === "/__ai/models") {
+      const client = clientAbortSignal(req, res);
+      try {
+        const models = await listAiModels(session.provider, session.apiKey, {
+          signal: client.signal,
+        });
+        if (!client.signal.aborted) sendJson(res, { provider: session.provider, models });
+      } catch (error) {
+        if (error instanceof AiError && error.code === "ai_auth_failed") {
+          aiSessions.delete(sessionId);
+        }
+        sendAiFailure(res, error);
+      } finally {
+        client.dispose();
+      }
+      return true;
+    }
+
+    if (pathname === "/__ai/generate") {
+      if (aiInflight.has(sessionId)) {
+        sendJsonStatus(res, 409, {
+          error: "ai_busy",
+          detail: "A generation is already running for this key session.",
+        });
+        return true;
+      }
+
+      const client = clientAbortSignal(req, res);
+      aiInflight.set(sessionId, client.controller);
+      try {
+        const input = {
+          provider: session.provider,
+          model: body.model,
+          task: body.task,
+          prompt: body.prompt,
+          audience: body.audience,
+          slideCount: body.slideCount,
+          currentMarkdown: body.currentMarkdown,
+        } as AiGenerateInput;
+        const result = await generateAiPresentation(input, session.apiKey, {
+          signal: client.signal,
+        });
+        if (!client.signal.aborted) sendJson(res, result);
+      } catch (error) {
+        if (error instanceof AiError && error.code === "ai_auth_failed") {
+          aiSessions.delete(sessionId);
+        }
+        sendAiFailure(res, error);
+      } finally {
+        if (aiInflight.get(sessionId) === client.controller) aiInflight.delete(sessionId);
+        client.dispose();
+      }
+      return true;
+    }
+
+    sendJsonStatus(res, 404, { error: "not_found", detail: "Unknown AI route." });
     return true;
   }
 
@@ -497,7 +728,7 @@ async function handleEditorRoute(
     const theme = resolveThemeName(body.theme);
     const title = docTitle(raw, body.title?.trim() || "deckrun");
     const forPrint = body.print === true;
-    const docPath = stashDeck(raw);
+    const docPath = stashDeck(injectDocBridge(raw));
     const wrapperPath = stashDeck(
       generateDocHtml(docPath, title, forPrint ? false : mode.fullscreen, theme)
     );
@@ -599,6 +830,9 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
         res.writeHead(200, {
           "Content-Type": getMime(asset),
           "Cache-Control": "public, max-age=31536000, immutable",
+          // Preview frames intentionally have an opaque sandbox origin. These
+          // immutable public assets need CORS so KaTeX font files still load.
+          "Access-Control-Allow-Origin": "*",
         });
         res.end(data);
         return;
@@ -641,6 +875,14 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
       }
 
       // Everything else comes off disk, relative to the working directory.
+      if (
+        isSensitiveLocalPath(pathname) ||
+        isBlockedLocalDiskRequest(pathname, req, mode.kind === "editor")
+      ) {
+        res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Forbidden");
+        return;
+      }
       const filePath = resolve(baseDir, pathname.replace(/^\/+/, ""));
       const fromBase = relative(baseDir, filePath);
       if (isAbsolute(fromBase) || fromBase.startsWith("..")) {
@@ -650,7 +892,16 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
       }
 
       const data = await readFile(filePath);
-      res.writeHead(200, { "Content-Type": getMime(filePath) });
+      res.writeHead(200, {
+        "Content-Type": getMime(filePath),
+        "X-Content-Type-Options": "nosniff",
+        ...(mode.kind === "editor" && extname(filePath).toLowerCase() === ".svg"
+          ? { "Content-Security-Policy": "sandbox; script-src 'none'; object-src 'none'" }
+          : {}),
+        ...(/\.(?:m?js)$/i.test(filePath)
+          ? { "Service-Worker-Allowed": "/__deckrun_no_root_service_worker__/" }
+          : {}),
+      });
       res.end(data);
     } catch (err) {
       const message = err instanceof Error ? err.message : "error";
@@ -873,7 +1124,7 @@ program
             mode = {
               kind: "deck",
               html: generateDocHtml("/__remote-doc", title, fullscreen, theme),
-              remoteDoc: docHtml,
+              remoteDoc: injectDocBridge(docHtml),
             };
 
             console.log(`${c.dim}presenting ${file} · ${THEMES[theme].label}${c.reset}`);
@@ -924,7 +1175,8 @@ program
             const title = docTitle(rawHtml, basename(absPath, extname(absPath)));
             mode = {
               kind: "deck",
-              html: generateDocHtml(`/${basename(absPath)}`, title, fullscreen, theme),
+              html: generateDocHtml("/__remote-doc", title, fullscreen, theme),
+              remoteDoc: injectDocBridge(rawHtml),
             };
 
             console.log(`${c.dim}presenting ${basename(absPath)} · ${THEMES[theme].label}${c.reset}`);

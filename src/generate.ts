@@ -1435,6 +1435,7 @@ export function generateHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="script-src-attr 'none'; object-src 'none'; base-uri 'none'">
   <title>${escAttr(pageTitle)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2650,6 +2651,62 @@ const DOC_CSS = `html, body {
   background: var(--crust);
 }`;
 
+const DOC_BRIDGE = `<script data-deckrun-bridge>
+(function () {
+  'use strict';
+  var host = window.parent;
+  function send(event, detail) {
+    host.postMessage({ type: 'deckrun-doc-event', event: event, detail: detail }, '*');
+  }
+  window.addEventListener('keydown', function (e) {
+    var key = e.key || '';
+    var target = e.target;
+    var editable = !!target && (
+      /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName || '') ||
+      target.isContentEditable ||
+      (target.closest && !!target.closest('[contenteditable="true"]'))
+    );
+    // Typing inside the presented document belongs to the document. Escape is
+    // still forwarded so an active presenter overlay can be dismissed.
+    if (editable && key !== 'Escape') return;
+    // Never swallow browser/document shortcuts. The wrapper still observes
+    // modifier keys, but only unmodified presenter hotkeys are claimed here.
+    var modified = e.metaKey || e.ctrlKey || e.altKey;
+    var claimed = !modified &&
+      (key === '?' || key === 'Escape' || /^[hHfFlLdDcCbB]$/.test(key));
+    if (claimed) e.preventDefault();
+    send('keydown', {
+      key: key,
+      metaKey: !!e.metaKey,
+      ctrlKey: !!e.ctrlKey,
+      altKey: !!e.altKey,
+      shiftKey: !!e.shiftKey
+    });
+  }, true);
+  window.addEventListener('pointermove', function (e) {
+    send('pointermove', { clientX: e.clientX, clientY: e.clientY });
+  }, { passive: true });
+  window.addEventListener('message', function (e) {
+    if (e.source !== host || !e.data || e.data.type !== 'deckrun-doc-theme') return;
+    var root = document.documentElement;
+    ['theme', 'decor', 'size', 'template', 'transition', 'head', 'body'].forEach(function (name) {
+      if (!Object.prototype.hasOwnProperty.call(e.data, name)) return;
+      if (e.data[name]) root.dataset[name] = String(e.data[name]);
+      else delete root.dataset[name];
+    });
+  });
+})();
+</script>`;
+
+/** Add the narrow postMessage bridge used by a sandboxed HTML presentation. */
+export function injectDocBridge(html: string): string {
+  if (/<script\b[^>]*\bdata-deckrun-bridge(?:\s|=|>)/i.test(html)) return html;
+  // Appending is intentionally parser-agnostic. Browsers place trailing
+  // executable content into the document body, while textual </body> strings
+  // inside user scripts cannot trick us into splicing at the wrong location.
+  return `${html}\n${DOC_BRIDGE}`;
+}
+
 /**
  * Wraps an arbitrary, already-self-contained HTML document (served at
  * `docUrl`) in an iframe and layers the subset of the presenter tool belt
@@ -2691,7 +2748,7 @@ ${PRESENTER_CSS}
 </head>
 <body>
 
-<iframe id="doc-frame" src="${escAttr(docUrl)}" title="${escAttr(title)}"></iframe>
+<iframe id="doc-frame" src="${escAttr(docUrl)}" title="${escAttr(title)}" sandbox="allow-scripts allow-forms allow-modals allow-popups"></iframe>
 
 <div id="hud">
   <div id="hud-row">
@@ -3012,6 +3069,9 @@ ${autoFullscreen ? `<div id="fs-hint">
 
     elLaser.classList.toggle('is-on', laserOn);
     document.body.classList.toggle('laser-on', laserOn);
+    // While the laser is active the wrapper owns pointer movement; ordinary
+    // document interaction resumes as soon as the laser is turned off.
+    elFrame.style.pointerEvents = laserOn ? 'none' : '';
     elBlack.classList.toggle('is-on', blackOn);
     elHelp.classList.toggle('is-on', helpOn);
   }
@@ -3219,8 +3279,8 @@ ${autoFullscreen ? `<div id="fs-hint">
   }
 
   // ── Laser pointer ────────────────────────────────────────────────────
-  // Same-origin doc, no border on the iframe: client coordinates line up
-  // with the outer viewport, so no translation is needed either way.
+  // The iframe has no border, so client coordinates line up with the outer
+  // viewport and no translation is needed either way.
   function onPointerMove(e) {
     if (!laserOn) return;
     elLaser.style.transform = 'translate(' + e.clientX + 'px, ' + e.clientY + 'px)';
@@ -3463,9 +3523,29 @@ ${autoFullscreen ? `<div id="fs-hint">
   }
   document.addEventListener('keydown', onKeydown);
 
-  // A same-origin, unsandboxed iframe still owns its own keyboard/pointer
-  // focus, so the parent's listeners never fire for events that start
-  // inside the doc unless they are attached there too.
+  window.addEventListener('message', function (e) {
+    if (e.source !== elFrame.contentWindow) return;
+    var m = e.data || {};
+    if (m.type !== 'deckrun-doc-event' || !m.detail) return;
+    if (m.event === 'keydown') {
+      onKeydown({
+        key: String(m.detail.key || ''),
+        metaKey: !!m.detail.metaKey,
+        ctrlKey: !!m.detail.ctrlKey,
+        altKey: !!m.detail.altKey,
+        shiftKey: !!m.detail.shiftKey,
+        preventDefault: function () {}
+      });
+    } else if (m.event === 'pointermove') {
+      onPointerMove({
+        clientX: Number(m.detail.clientX) || 0,
+        clientY: Number(m.detail.clientY) || 0
+      });
+    }
+  });
+
+  // Theme-aware documents accept the bridge message below. Direct DOM access
+  // remains best-effort because arbitrary docs have an opaque sandbox origin.
   function attachToFrame() {
     try {
       if (elFrame.contentDocument && elFrame.contentDocument.documentElement) {
@@ -3474,12 +3554,11 @@ ${autoFullscreen ? `<div id="fs-hint">
     } catch (err) {}
     try {
       if (elFrame.contentWindow) {
+        elFrame.contentWindow.postMessage({ type: 'deckrun-doc-theme', theme: document.documentElement.dataset.theme || '${theme}' }, '*');
+        // Preserve the original public message for documents that already
+        // implemented Deckrun's theme hook themselves.
         elFrame.contentWindow.postMessage({ type: 'theme', theme: document.documentElement.dataset.theme || '${theme}' }, '*');
       }
-    } catch (err) {}
-    try {
-      elFrame.contentWindow.addEventListener('keydown', onKeydown);
-      elFrame.contentWindow.addEventListener('pointermove', onPointerMove, { passive: true });
     } catch (err) {}
   }
   elFrame.addEventListener('load', attachToFrame);

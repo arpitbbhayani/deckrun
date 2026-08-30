@@ -1,304 +1,314 @@
-export type TemplateName = "classic" | "minimal" | "editorial" | "spotlight";
-export type TransitionName = "slide" | "fade" | "zoom" | "lift" | "none";
+/**
+ * Presentation-wide composition and motion options.
+ *
+ * A template changes layout only; a transition changes motion only.  Keeping
+ * the two registries independent lets the editor switch either by changing a
+ * single data attribute on the document root.
+ */
 
-export const DEFAULT_TEMPLATE: TemplateName = "classic";
-export const DEFAULT_TRANSITION: TransitionName = "slide";
+export const TEMPLATE_IDS = ["classic", "minimal", "editorial", "spotlight"] as const;
+export type TemplateName = (typeof TEMPLATE_IDS)[number];
 
-export const TEMPLATE_IDS: readonly TemplateName[] = [
-  "classic",
-  "minimal",
-  "editorial",
-  "spotlight",
-] as const;
+export const TRANSITION_IDS = ["slide", "fade", "zoom", "lift", "none"] as const;
+export type TransitionName = (typeof TRANSITION_IDS)[number];
 
-export const TRANSITION_IDS: readonly TransitionName[] = [
-  "slide",
-  "fade",
-  "zoom",
-  "lift",
-  "none",
-] as const;
-
-export interface OptionSummary<T extends string> {
+export interface PresentationOptionSummary<T extends string = string> {
   id: T;
   label: string;
   blurb: string;
 }
 
-export const TEMPLATE_SPECS: Record<TemplateName, { label: string; blurb: string }> = {
+export type TemplateSummary = PresentationOptionSummary<TemplateName>;
+export type TransitionSummary = PresentationOptionSummary<TransitionName>;
+
+export const TEMPLATES: Record<TemplateName, TemplateSummary> = {
   classic: {
-    label: "Classic",
-    blurb: "The original balanced deckrun layout",
+    id: "classic",
+    label: "classic",
+    blurb: "The original balanced deckrun layout.",
   },
   minimal: {
-    label: "Minimal",
-    blurb: "Quiet surfaces, wider margins, fewer decorative treatments",
+    id: "minimal",
+    label: "minimal",
+    blurb: "Quiet surfaces, wider margins, and fewer decorative treatments.",
   },
   editorial: {
-    label: "Editorial",
-    blurb: "Strong rules and magazine-like reading rhythm",
+    id: "editorial",
+    label: "editorial",
+    blurb: "Strong rules and a magazine-like reading rhythm.",
   },
   spotlight: {
-    label: "Spotlight",
-    blurb: "Centered, high-impact composition for concise keynote slides",
+    id: "spotlight",
+    label: "spotlight",
+    blurb: "Centered, high-impact composition for concise keynote slides.",
   },
 };
 
-export const TRANSITION_SPECS: Record<TransitionName, { label: string; blurb: string }> = {
+export const TRANSITIONS: Record<TransitionName, TransitionSummary> = {
   slide: {
-    label: "Slide",
-    blurb: "Horizontal sliding transition between slides",
+    id: "slide",
+    label: "slide",
+    blurb: "Direction-aware horizontal movement.",
   },
   fade: {
-    label: "Fade",
-    blurb: "Cross-fade between slides",
+    id: "fade",
+    label: "fade",
+    blurb: "A quiet crossfade with no spatial movement.",
   },
   zoom: {
-    label: "Zoom",
-    blurb: "Scale up and down between slides",
+    id: "zoom",
+    label: "zoom",
+    blurb: "The next slide settles forward from a small scale.",
   },
   lift: {
-    label: "Lift",
-    blurb: "Vertical rising transition between slides",
+    id: "lift",
+    label: "lift",
+    blurb: "Slides rise and fall with navigation direction.",
   },
   none: {
-    label: "None",
-    blurb: "Instant cut between slides",
+    id: "none",
+    label: "none",
+    blurb: "No transition; slides change immediately.",
   },
 };
 
+export const DEFAULT_TEMPLATE: TemplateName = "classic";
+export const DEFAULT_TRANSITION: TransitionName = "slide";
+
+/** A template id from untrusted input, or `null` if it names nothing. */
 export function findTemplate(input: string | undefined | null): TemplateName | null {
   if (!input) return null;
   const key = String(input).trim().toLowerCase();
-  for (const id of TEMPLATE_IDS) {
-    if (id === key) return id;
-    if (TEMPLATE_SPECS[id].label.toLowerCase() === key) return id;
-  }
-  return null;
+  return Object.prototype.hasOwnProperty.call(TEMPLATES, key)
+    ? (key as TemplateName)
+    : null;
 }
 
+/** A template id from untrusted input, falling back to the default. */
 export function resolveTemplateName(input: string | undefined | null): TemplateName {
   return findTemplate(input) ?? DEFAULT_TEMPLATE;
 }
 
-export function templateSummaries(): Array<OptionSummary<TemplateName>> {
-  return TEMPLATE_IDS.map((id) => ({
-    id,
-    label: TEMPLATE_SPECS[id].label,
-    blurb: TEMPLATE_SPECS[id].blurb,
-  }));
-}
-
-export function templateListing(): string[] {
-  const pad = Math.max(...TEMPLATE_IDS.map((id) => id.length));
-  return TEMPLATE_IDS.map((id) => {
-    const s = TEMPLATE_SPECS[id];
-    return `${id.padEnd(pad)}  ${s.label.padEnd(10)}  ${s.blurb}`;
-  });
-}
-
+/** A transition id from untrusted input, or `null` if it names nothing. */
 export function findTransition(input: string | undefined | null): TransitionName | null {
   if (!input) return null;
   const key = String(input).trim().toLowerCase();
-  for (const id of TRANSITION_IDS) {
-    if (id === key) return id;
-    if (TRANSITION_SPECS[id].label.toLowerCase() === key) return id;
-  }
-  return null;
+  return Object.prototype.hasOwnProperty.call(TRANSITIONS, key)
+    ? (key as TransitionName)
+    : null;
 }
 
+/** A transition id from untrusted input, falling back to the default. */
 export function resolveTransitionName(input: string | undefined | null): TransitionName {
   return findTransition(input) ?? DEFAULT_TRANSITION;
 }
 
-export function transitionSummaries(): Array<OptionSummary<TransitionName>> {
-  return TRANSITION_IDS.map((id) => ({
-    id,
-    label: TRANSITION_SPECS[id].label,
-    blurb: TRANSITION_SPECS[id].blurb,
-  }));
+/** JSON-ready option rows for the editor. */
+export function templateSummaries(): TemplateSummary[] {
+  return TEMPLATE_IDS.map((id) => ({ ...TEMPLATES[id] }));
 }
 
+/** JSON-ready option rows for the editor. */
+export function transitionSummaries(): TransitionSummary[] {
+  return TRANSITION_IDS.map((id) => ({ ...TRANSITIONS[id] }));
+}
+
+/** One line per template, for `deckrun --list-templates`. */
+export function templateListing(): string[] {
+  const pad = Math.max(...TEMPLATE_IDS.map((id) => id.length));
+  return TEMPLATE_IDS.map((id) => `${id.padEnd(pad)}  ${TEMPLATES[id].blurb}`);
+}
+
+/** One line per transition, for `deckrun --list-transitions`. */
 export function transitionListing(): string[] {
   const pad = Math.max(...TRANSITION_IDS.map((id) => id.length));
-  return TRANSITION_IDS.map((id) => {
-    const s = TRANSITION_SPECS[id];
-    return `${id.padEnd(pad)}  ${s.label.padEnd(8)}  ${s.blurb}`;
-  });
+  return TRANSITION_IDS.map((id) => `${id.padEnd(pad)}  ${TRANSITIONS[id].blurb}`);
 }
 
-export const TEMPLATE_CSS = `/* ── Templates ──────────────────────────────────────────────────────────── */
+/**
+ * Template rules are deliberately rooted at `data-template`.  They only
+ * recompose existing semantic slide markup, so changing templates never
+ * requires reparsing or mutating the Markdown.
+ */
+export const TEMPLATE_CSS = `/* ── Composition templates ────────────────────────────────────────── */
+/* classic intentionally inherits the balanced base rules in generate.ts. */
 
-/* Minimal */
-:root[data-template="minimal"] {
-  --slide-pad-x: 10vw;
-  --slide-pad-y: 8vh;
+:root[data-template="minimal"] .slide {
+  padding-left: calc(var(--slide-pad-x) + 1.8rem);
+  padding-right: calc(var(--slide-pad-x) + 1.8rem);
 }
-:root[data-template="minimal"] #backdrop {
-  opacity: 0.15;
+
+:root[data-template="minimal"] .slide__content:not(.slide__split .slide__content) {
+  width: min(100%, 72rem);
+  margin-inline: auto;
 }
-:root[data-template="minimal"] .slide__content h1 {
-  letter-spacing: -0.02em;
+
+:root[data-template="minimal"] .slide__content h1::after { display: none; }
+:root[data-template="minimal"] .slide__content h1 { padding-bottom: 0; }
+:root[data-template="minimal"] .slide__content pre,
+:root[data-template="minimal"] .slide__image-panel img {
+  border-color: transparent;
+  box-shadow: none;
 }
-:root[data-template="minimal"] blockquote {
-  border-left-width: 2px;
+:root[data-template="minimal"] .slide__content pre::before { opacity: 0.32; }
+:root[data-template="minimal"] .slide__content blockquote {
   background: transparent;
-}
-:root[data-template="minimal"] pre {
-  border: 1px solid var(--surface0);
+  border-radius: 0;
 }
 
-/* Editorial */
-:root[data-template="editorial"] {
-  --slide-pad-x: 7vw;
+:root[data-template="editorial"] .slide {
+  padding-top: calc(var(--slide-pad-y) + 0.25rem);
 }
-:root[data-template="editorial"] .slide__content h1 {
-  border-bottom: 3px solid var(--accent);
-  padding-bottom: 0.3em;
-  margin-bottom: 0.6em;
+
+:root[data-template="editorial"] .slide__content {
+  border-top: 1px solid var(--accent-line);
+  padding-top: 1.35rem;
 }
+
+:root[data-template="editorial"] .slide__split .slide__content {
+  align-self: stretch;
+}
+
+:root[data-template="editorial"] .slide__content h1,
 :root[data-template="editorial"] .slide__content h2 {
-  border-bottom: 1px solid var(--surface1);
-  padding-bottom: 0.2em;
-}
-:root[data-template="editorial"] blockquote {
-  border-left: 4px solid var(--accent);
-  font-style: italic;
-  background: var(--surface0);
-}
-:root[data-template="editorial"] table th {
-  border-bottom: 2px solid var(--accent);
-}
-:root[data-template="editorial"] hr {
-  border: none;
-  border-top: 2px solid var(--surface2);
-  margin: 2em 0;
+  max-width: 18ch;
 }
 
-/* Spotlight */
+:root[data-template="editorial"] .slide__content h1::after {
+  width: 100%;
+  max-width: none;
+  height: 1px;
+  border-radius: 0;
+}
+
+:root[data-template="editorial"] .slide__content h2 {
+  padding-bottom: 0.55rem;
+  border-bottom: 3px solid var(--accent);
+}
+
+:root[data-template="editorial"] .slide__content blockquote {
+  border-left-width: 7px;
+  border-radius: 0;
+}
+
+:root[data-template="editorial"] .slide__image-panel img,
+:root[data-template="editorial"] .slide__content pre {
+  border-radius: 2px;
+}
+
 :root[data-template="spotlight"] .slide {
   justify-content: center;
-  align-items: center;
   text-align: center;
 }
-:root[data-template="spotlight"] .slide__content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
+
+:root[data-template="spotlight"] .slide__content:not(.slide__split .slide__content) {
+  width: min(100%, 68rem);
+  margin-inline: auto;
 }
-:root[data-template="spotlight"] .slide__content h1 {
-  font-size: calc(var(--type-display) * 1.15);
-  text-align: center;
-}
-:root[data-template="spotlight"] .slide__content p {
-  max-width: 80%;
+
+:root[data-template="spotlight"] .slide__content h1,
+:root[data-template="spotlight"] .slide__content h2,
+:root[data-template="spotlight"] .slide__content h3 {
   margin-left: auto;
   margin-right: auto;
+  text-wrap: balance;
 }
+
+:root[data-template="spotlight"] .slide__content h1 {
+  font-size: calc(clamp(2.6rem, 6.2vw, 5.4rem) * var(--type-display));
+}
+
+:root[data-template="spotlight"] .slide__content h1::after {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+:root[data-template="spotlight"] .slide__content p {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 42em;
+}
+
+:root[data-template="spotlight"] .slide__content ul,
+:root[data-template="spotlight"] .slide__content ol,
+:root[data-template="spotlight"] .slide__content table {
+  text-align: left;
+}
+
 :root[data-template="spotlight"] .slide__content ul,
 :root[data-template="spotlight"] .slide__content ol {
-  text-align: left;
   display: inline-block;
-  margin-left: auto;
-  margin-right: auto;
+  max-width: 46em;
 }
-:root[data-template="spotlight"] .slide__content blockquote {
-  text-align: center;
-  border-left: none;
-  border-top: 2px solid var(--accent);
-  border-bottom: 2px solid var(--accent);
-  padding: 1em 2em;
-  background: transparent;
-}
-:root[data-template="spotlight"] .slide__content pre {
-  text-align: left;
-}
-`;
 
-export const TRANSITION_CSS = `/* ── Transitions ────────────────────────────────────────────────────────── */
-
-/* Fade */
-:root[data-transition="fade"] .slide {
-  transition: opacity 0.3s ease;
-  transform: none !important;
+:root[data-template="spotlight"] .slide__split { text-align: left; }
+:root[data-template="spotlight"] .slide__split .slide__content h1,
+:root[data-template="spotlight"] .slide__split .slide__content h2,
+:root[data-template="spotlight"] .slide__split .slide__content h3 {
+  margin-left: 0;
+  margin-right: 0;
 }
+
+@media print {
+  :root[data-template="spotlight"] .slide { justify-content: center !important; }
+}`;
+
+/** Independent motion presets selected through `data-transition`. */
+export const TRANSITION_CSS = `/* ── Slide transitions ───────────────────────────────────────────── */
+:root[data-transition="slide"] .slide {
+  transition: opacity 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:root[data-transition="fade"] .slide,
 :root[data-transition="fade"] .slide.exit-left,
 :root[data-transition="fade"] .slide.exit-right,
 :root[data-transition="fade"] .slide.enter-from-left,
 :root[data-transition="fade"] .slide.enter-from-right {
-  transform: none !important;
-  opacity: 0;
+  transform: none;
 }
-:root[data-transition="fade"] .slide.is-active {
-  opacity: 1;
-  transform: none !important;
-}
+:root[data-transition="fade"] .slide { transition: opacity 0.3s ease; }
 
-/* Zoom */
 :root[data-transition="zoom"] .slide {
-  transform: scale(0.92);
-  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(0.965);
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
-:root[data-transition="zoom"] .slide.is-active {
-  transform: scale(1);
-  opacity: 1;
-}
+:root[data-transition="zoom"] .slide.is-active { transform: scale(1); }
 :root[data-transition="zoom"] .slide.exit-left,
-:root[data-transition="zoom"] .slide.exit-right {
-  transform: scale(1.08);
-  opacity: 0;
-}
+:root[data-transition="zoom"] .slide.exit-right { transform: scale(1.035); }
 :root[data-transition="zoom"] .slide.enter-from-left,
-:root[data-transition="zoom"] .slide.enter-from-right {
-  transform: scale(0.92);
-  opacity: 0;
-}
+:root[data-transition="zoom"] .slide.enter-from-right { transform: scale(0.965); }
 
-/* Lift */
 :root[data-transition="lift"] .slide {
-  transform: translateY(48px);
-  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(38px);
+  transition: opacity 0.38s ease, transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
-:root[data-transition="lift"] .slide.is-active {
-  transform: translateY(0);
-  opacity: 1;
-}
-:root[data-transition="lift"] .slide.exit-left,
-:root[data-transition="lift"] .slide.exit-right {
-  transform: translateY(-48px);
-  opacity: 0;
-}
-:root[data-transition="lift"] .slide.enter-from-left,
-:root[data-transition="lift"] .slide.enter-from-right {
-  transform: translateY(48px);
-  opacity: 0;
-}
+:root[data-transition="lift"] .slide.is-active { transform: translateY(0); }
+:root[data-transition="lift"] .slide.exit-left { transform: translateY(-38px); }
+:root[data-transition="lift"] .slide.exit-right { transform: translateY(38px); }
+:root[data-transition="lift"] .slide.enter-from-left { transform: translateY(-38px); }
+:root[data-transition="lift"] .slide.enter-from-right { transform: translateY(38px); }
 
-/* None */
 :root[data-transition="none"] .slide,
-:root[data-transition="none"] .slide.is-active,
 :root[data-transition="none"] .slide.exit-left,
 :root[data-transition="none"] .slide.exit-right,
 :root[data-transition="none"] .slide.enter-from-left,
 :root[data-transition="none"] .slide.enter-from-right {
-  transition: none !important;
-  transform: none !important;
+  transform: none;
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root[data-transition] .slide {
-    transition: opacity 0.2s linear !important;
+  :root .slide,
+  :root .slide.exit-left,
+  :root .slide.exit-right,
+  :root .slide.enter-from-left,
+  :root .slide.enter-from-right {
     transform: none !important;
+    transition: opacity 0.2s linear !important;
   }
 }
 
 @media print {
-  :root[data-transition] .slide {
-    transition: none !important;
-    transform: none !important;
-    opacity: 1 !important;
-  }
-}
-`;
+  :root .slide { transition: none !important; transform: none !important; }
+}`;

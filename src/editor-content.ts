@@ -370,6 +370,7 @@ export const SNIPPETS: Snippet[] = [
   },
 
   // ── Actions ──────────────────────────────────────────────────────────────
+  { id: "act-ai",       group: "Actions", label: "Create with AI",          hint: "Use your provider key and model to create or revise an editable deck.", syntax: "", action: "ai" },
   { id: "act-present",  group: "Actions", label: "Present this deck",        hint: "Opens the real presentation in a new tab.",                 syntax: "", action: "present",  keys: "Cmd Enter" },
   { id: "act-download", group: "Actions", label: "Export as Markdown",       hint: "Downloads a plain .md file. Yours to keep.",                  syntax: "", action: "download", keys: "Cmd S" },
   { id: "act-pdf",      group: "Actions", label: "Export as PDF",            hint: "A real PDF file, one 16:9 page per slide, styling intact.",         syntax: "", action: "pdf",      keys: "Cmd Shift S" },

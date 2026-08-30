@@ -30,6 +30,7 @@ import {
   type TemplateName,
   type TransitionName,
 } from "./presentation-options.js";
+import { providerSummaries } from "./ai.js";
 
 function bootstrapJson(
   theme: ThemeName,
@@ -55,6 +56,7 @@ function bootstrapJson(
     snippets: SNIPPETS,
     tips: TIPS,
     welcome: WELCOME_DECK,
+    aiProviders: providerSummaries(),
   };
   // Keep the JSON inert inside a <script> block.
   return JSON.stringify(payload).replace(/</g, "\\u003c");
@@ -317,6 +319,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--crust);
 }
 .btn--primary kbd { color: var(--crust); opacity: 0.7; }
+
+.btn--ai {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--surface0));
+  background: var(--accent-soft);
+}
+.btn--ai:hover { color: var(--text); border-color: var(--accent); }
 
 /* ── Panes ────────────────────────────────────────────────────────────── */
 #panes { flex: 1 1 auto; display: flex; min-height: 0; }
@@ -1113,6 +1122,131 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   display: none !important;
 }
 
+/* ── AI deck builder ─────────────────────────────────────────────────── */
+#ai { position: fixed; inset: 0; z-index: 70; display: none; }
+#ai.is-on { display: block; }
+
+#ai-box {
+  position: relative;
+  width: min(720px, 94vw);
+  max-height: 88vh;
+  margin: 6vh auto 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--mantle);
+  border: 1px solid var(--surface1);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+#ai-head, #ai-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--surface0);
+}
+#ai-head__copy { flex: 1 1 auto; min-width: 0; }
+#ai-head h2 { margin: 0; font-size: 15px; color: var(--text); }
+#ai-head p { margin: 4px 0 0; font-size: 11px; line-height: 1.5; color: var(--overlay1); }
+#ai-head button, #ai-foot button, .ai-inline-button {
+  padding: 6px 10px;
+  color: var(--subtext0);
+  border: 1px solid var(--surface1);
+  border-radius: 7px;
+}
+#ai-head button:hover, #ai-foot button:hover, .ai-inline-button:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+#ai-body { padding: 18px; overflow-y: auto; }
+.ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 14px; }
+.ai-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ai-field--wide { grid-column: 1 / -1; }
+.ai-field label, .ai-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--overlay0);
+}
+.ai-field input, .ai-field select, .ai-field textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--base);
+  border: 1px solid var(--surface1);
+  border-radius: 8px;
+  outline: none;
+}
+.ai-field input:focus, .ai-field select:focus, .ai-field textarea:focus { border-color: var(--accent); }
+.ai-field textarea { min-height: 128px; resize: vertical; }
+.ai-field input:disabled, .ai-field select:disabled, .ai-field textarea:disabled { opacity: 0.55; }
+.ai-key-row, .ai-model-row { display: flex; gap: 7px; align-items: stretch; }
+.ai-key-row input, .ai-model-row input { flex: 1 1 auto; }
+.ai-help { font-size: 10.5px; line-height: 1.55; color: var(--overlay1); }
+.ai-help strong { color: var(--subtext0); font-weight: 500; }
+.ai-help a { color: var(--accent); text-decoration: none; }
+.ai-help a:hover { text-decoration: underline; }
+
+#ai-connection {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--green) 35%, var(--surface0));
+  border-radius: 8px;
+  font-size: 11.5px;
+}
+#ai-connection.is-on { display: flex; }
+#ai-connection span { flex: 1 1 auto; }
+#ai-connection button { color: var(--subtext0); font-size: 10.5px; }
+#ai-connection button:hover { color: var(--text); }
+
+#ai-status { min-height: 18px; margin-top: 12px; font-size: 11px; color: var(--overlay1); }
+#ai-status.is-err { color: var(--red); }
+#ai-status.is-ok { color: var(--green); }
+#ai-foot { justify-content: flex-end; border-top: 1px solid var(--surface0); border-bottom: 0; }
+#ai-generate { color: var(--crust) !important; font-weight: 600; border-color: transparent !important; background: var(--gradient); }
+#ai-generate:hover { filter: brightness(1.1); background: var(--gradient) !important; }
+#ai-generate[disabled], #ai-connect[disabled], #ai-refresh-models[disabled],
+#ai-forget[disabled], #ai-key-toggle[disabled], #ai-manual-model[disabled] {
+  opacity: 0.5;
+  cursor: wait;
+}
+.ai-field label.ai-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--overlay1);
+  cursor: pointer;
+}
+.ai-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  appearance: auto;
+  accent-color: var(--accent);
+}
+
+@media (max-width: 620px) {
+  #ai-box { margin-top: 2vh; max-height: 96vh; }
+  .ai-grid { grid-template-columns: 1fr; }
+  .ai-field--wide { grid-column: auto; }
+}
+
 /* ── Start screen ─────────────────────────────────────────────────────── */
 #screen-start { position: fixed; inset: 0; z-index: 55; display: none; }
 #screen-start.is-on { display: block; }
@@ -1120,11 +1254,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 #start-box {
   position: relative;
   width: min(680px, 92vw);
+  max-height: 82vh;
   margin: 12vh auto 0;
   padding: 26px 28px 22px;
   background: var(--mantle);
   border: 1px solid var(--surface1);
   border-radius: 14px;
+  overflow-y: auto;
   box-shadow: var(--shadow-lg);
 }
 
@@ -1221,6 +1357,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     <button class="btn" id="btn-guide" title="Everything you can put on a slide">guide <kbd>Cmd /</kbd></button>
     <button class="btn" id="btn-palette" title="Insert anything">insert <kbd>Cmd K</kbd></button>
     <button class="btn" id="btn-new" title="Start a new Markdown deck or HTML doc">new</button>
+    <button class="btn btn--ai" id="btn-ai" title="Create or revise a deck with your AI provider">AI</button>
     <span class="menu">
       <button class="btn" id="btn-export" aria-haspopup="true" aria-expanded="false">export <span class="menu__chev">&#9662;</span></button>
       <div class="menu__pop" id="export-menu">
@@ -1311,14 +1448,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       </div>
       <div id="stage">
         <div id="frame-box" class="is-single">
-          <iframe id="frame" src="/__preview" title="Slide preview"></iframe>
+          <iframe id="frame" src="/__preview" title="Slide preview" sandbox="allow-scripts allow-forms allow-modals allow-popups"></iframe>
         </div>
       </div>
       <div id="notes">
         <div id="notes__label">speaker notes</div>
         <div id="notes__text"></div>
       </div>
-      <iframe id="frame-html" title="HTML doc preview"></iframe>
+      <iframe id="frame-html" title="HTML doc preview" sandbox="allow-scripts allow-forms allow-modals allow-popups"></iframe>
     </section>
   </main>
 
@@ -1334,7 +1471,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       <button id="tip-prev" title="Previous tip">&#8249;</button>
       <button id="tip-next" title="Next tip">&#8250;</button>
     </span>
-    <span>local only, nothing is uploaded</span>
+    <span>local first &middot; AI sends only what you submit</span>
   </footer>
 </div>
 
@@ -1396,6 +1533,79 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   </div>
 </div>
 
+<div id="ai" aria-hidden="true">
+  <div class="backdrop" data-close="ai"></div>
+  <section id="ai-box" role="dialog" aria-modal="true" aria-labelledby="ai-title">
+    <div id="ai-head">
+      <div id="ai-head__copy">
+        <h2 id="ai-title">Create with AI</h2>
+        <p>Use your own provider key. Deckrun keeps it only in this local process session and never puts it in a deck or browser storage.</p>
+      </div>
+      <button id="ai-close" data-close="ai" aria-label="Close AI builder">close</button>
+    </div>
+    <div id="ai-body">
+      <div class="ai-grid">
+        <div class="ai-field">
+          <label for="ai-provider">provider</label>
+          <select id="ai-provider"></select>
+        </div>
+        <div class="ai-field">
+          <label for="ai-task">what to make</label>
+          <select id="ai-task">
+            <option value="create">Create a new deck</option>
+            <option value="revise">Revise current deck as a copy</option>
+            <option value="append">Create extra slides as a new copy</option>
+          </select>
+        </div>
+        <div class="ai-field ai-field--wide" id="ai-key-field">
+          <label for="ai-key">API key</label>
+          <div class="ai-key-row">
+            <input id="ai-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your provider API key">
+            <button class="ai-inline-button" id="ai-key-toggle" type="button">show</button>
+            <button class="ai-inline-button" id="ai-connect" type="button">connect &amp; load models</button>
+          </div>
+          <label class="ai-check" for="ai-manual-model">
+            <input id="ai-manual-model" type="checkbox">
+            Skip model loading and enter a model ID manually
+          </label>
+          <span class="ai-help">The key goes from this browser to the local Deckrun process, then directly to the provider over HTTPS. It expires from memory automatically. <a id="ai-key-help" target="_blank" rel="noopener noreferrer">Get an API key</a>.</span>
+        </div>
+        <div class="ai-field ai-field--wide" id="ai-connection">
+          <span id="ai-connection-copy">provider connected for this session</span>
+          <button id="ai-forget" type="button">forget key</button>
+        </div>
+        <div class="ai-field ai-field--wide">
+          <label for="ai-model">model</label>
+          <div class="ai-model-row">
+            <input id="ai-model" list="ai-model-options" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Connect to load models, or enter a model ID">
+            <datalist id="ai-model-options"></datalist>
+            <button class="ai-inline-button" id="ai-refresh-models" type="button">refresh</button>
+          </div>
+          <span class="ai-help">Choose a text-generation model returned by your provider, or type a supported model ID.</span>
+        </div>
+        <div class="ai-field">
+          <label for="ai-slides">slide count</label>
+          <input id="ai-slides" type="number" min="2" max="30" step="1" value="8" inputmode="numeric">
+        </div>
+        <div class="ai-field">
+          <label for="ai-audience">audience <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input id="ai-audience" type="text" maxlength="180" placeholder="e.g. product leaders">
+        </div>
+        <div class="ai-field ai-field--wide">
+          <label for="ai-prompt">brief</label>
+          <textarea id="ai-prompt" maxlength="12000" placeholder="Describe the presentation, its goal, important points, tone, and anything the AI must include."></textarea>
+          <span class="ai-help"><strong>Review before presenting.</strong> AI can be wrong. Generated content is added to the library as a new Markdown deck.</span>
+        </div>
+      </div>
+      <div id="ai-status" role="status" aria-live="polite"></div>
+    </div>
+    <div id="ai-foot">
+      <button id="ai-cancel" data-close="ai">cancel</button>
+      <button id="ai-generate">generate deck</button>
+    </div>
+  </section>
+</div>
+
 <div id="screen-start">
   <div class="backdrop"></div>
   <div id="start-box">
@@ -1404,6 +1614,10 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       <p>What are you making?</p>
     </div>
     <div id="start-cards">
+      <button class="start-card" id="start-ai">
+        <span class="start-card__title">Create with AI</span>
+        <span class="start-card__desc">Bring your API key, choose a model, and turn a brief into an editable Markdown deck.</span>
+      </button>
       <div class="start-card" id="start-md-card">
         <span class="start-card__title">Markdown deck</span>
         <span class="start-card__desc">Slides written in Markdown, presented one at a time.</span>
@@ -1466,6 +1680,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     split:   'deckrun.split.v1',
     mode:    'deckrun.mode.v1',
     nudge:   'deckrun.nudges.v1',
+    aiProvider: 'deckrun.ai.provider.v1',
+    aiModel: 'deckrun.ai.model.v1',
     // Superseded by the deck library, read once to migrate.
     oldDoc:  'presentmd.doc.v1',
     oldName: 'presentmd.name.v1'
@@ -1708,6 +1924,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var palette = $('palette'), palInput = $('pal-input'), palList = $('pal-list');
   var guide = $('guide'), guideBody = $('guide-body');
   var srcHtml = $('src-html'), frameHtml = $('frame-html');
+  var ai = $('ai'), aiProviderEl = $('ai-provider'), aiModelEl = $('ai-model');
 
   // ── State ──────────────────────────────────────────────────────────────
   var state = {
@@ -1827,6 +2044,374 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       el.style.opacity = '0';
       setTimeout(function () { el.remove(); }, 320);
     }, actionLabel ? 8000 : 4200);
+  }
+
+  // ── AI deck builder ───────────────────────────────────────────────────
+  // The browser keeps only an opaque session id. The provider key lives in
+  // the local Node process, expires there, and is cleared from this form as
+  // soon as the connection succeeds.
+  var aiSessionId = null;
+  var aiSessionProvider = null;
+  var aiBusy = false;
+  var aiAbort = null;
+  var aiSeq = 0;
+  var aiReturnFocus = null;
+
+  function setAiStatus(message, kind) {
+    var el = $('ai-status');
+    el.textContent = message || '';
+    el.className = kind ? 'is-' + kind : '';
+  }
+
+  function aiRequest(path, body, signal) {
+    return fetch(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Deckrun-AI': '1'
+      },
+      body: JSON.stringify(body || {}),
+      signal: signal
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok) {
+          var message = data && (data.detail || data.error);
+          var error = new Error(message || ('request failed (' + response.status + ')'));
+          error.status = response.status;
+          error.code = data && data.error;
+          throw error;
+        }
+        return data;
+      });
+    });
+  }
+
+  function buildAiProviders() {
+    aiProviderEl.innerHTML = '';
+    (D.aiProviders || []).forEach(function (provider) {
+      var option = document.createElement('option');
+      option.value = provider.id;
+      option.textContent = provider.label;
+      aiProviderEl.appendChild(option);
+    });
+    var remembered = lsGet(K.aiProvider, '');
+    var known = Array.prototype.some.call(aiProviderEl.options, function (option) {
+      return option.value === remembered;
+    });
+    if (remembered && known) {
+      aiProviderEl.value = remembered;
+    }
+    syncAiProviderDetails();
+  }
+
+  function syncAiProviderDetails() {
+    var provider = (D.aiProviders || []).find(function (item) {
+      return item.id === aiProviderEl.value;
+    });
+    if (!provider) return;
+    $('ai-key').placeholder = provider.keyPlaceholder || 'Paste your provider API key';
+    $('ai-key-help').href = provider.keyHelpUrl;
+    $('ai-key-help').textContent = 'Get ' + (/^[AEIOU]/i.test(provider.label) ? 'an ' : 'a ') +
+      provider.label + ' API key';
+  }
+
+  function paintAiModels(models, keepValue) {
+    var previous = keepValue ? aiModelEl.value.trim() : '';
+    var host = $('ai-model-options');
+    host.innerHTML = '';
+    (models || []).forEach(function (model) {
+      var option = document.createElement('option');
+      option.value = model;
+      host.appendChild(option);
+    });
+    var remembered = lsGet(K.aiModel + '.' + aiProviderEl.value, '');
+    if (previous) aiModelEl.value = previous;
+    else if (remembered) aiModelEl.value = remembered;
+    else aiModelEl.value = '';
+  }
+
+  function paintAiConnection() {
+    var connected = !!aiSessionId && aiSessionProvider === aiProviderEl.value;
+    $('ai-key-field').style.display = connected ? 'none' : '';
+    $('ai-connection').classList.toggle('is-on', connected);
+    $('ai-connection-copy').textContent = connected
+      ? ((aiProviderEl.options[aiProviderEl.selectedIndex] || {}).textContent || aiProviderEl.value) +
+        ' connected for this local session'
+      : '';
+    $('ai-refresh-models').disabled = !connected || aiBusy;
+    $('ai-generate').disabled = !connected || aiBusy;
+  }
+
+  function setAiBusy(busy, label) {
+    aiBusy = busy;
+    $('ai-connect').disabled = busy;
+    $('ai-key').disabled = busy;
+    $('ai-key-toggle').disabled = busy;
+    $('ai-manual-model').disabled = busy;
+    $('ai-provider').disabled = busy;
+    $('ai-forget').disabled = busy;
+    $('ai-generate').textContent = busy ? (label || 'working...') : 'generate deck';
+    paintAiConnection();
+  }
+
+  function cancelAiOperation() {
+    aiSeq += 1;
+    if (aiAbort) aiAbort.abort();
+    aiAbort = null;
+    setAiBusy(false);
+  }
+
+  function closeAi(restoreFocus) {
+    if (!ai.classList.contains('is-on')) return;
+    cancelAiOperation();
+    ai.classList.remove('is-on');
+    ai.setAttribute('aria-hidden', 'true');
+    $('app').inert = false;
+    $('screen-start').inert = false;
+    $('ai-key').value = '';
+    $('ai-key').type = 'password';
+    $('ai-key-toggle').textContent = 'show';
+    updateDocTitle();
+    var target = aiReturnFocus;
+    aiReturnFocus = null;
+    if (restoreFocus !== false && target && typeof target.focus === 'function') {
+      setTimeout(function () {
+        if (document.contains(target)) target.focus();
+      }, 0);
+    }
+  }
+
+  function openAi(preferredTask) {
+    closeMenu();
+    palette.classList.remove('is-on');
+    guide.classList.remove('is-on');
+    $('library').classList.remove('is-on');
+    if ($('themes').classList.contains('is-on')) closeThemes(true);
+    aiReturnFocus = document.activeElement;
+
+    var canUseCurrent = !!state.deckId && state.kind === 'markdown' && !!src.value.trim();
+    Array.prototype.forEach.call($('ai-task').options, function (option) {
+      if (option.value !== 'create') option.disabled = !canUseCurrent;
+    });
+    $('ai-task').value = preferredTask && (preferredTask === 'create' || canUseCurrent)
+      ? preferredTask
+      : 'create';
+    paintAiConnection();
+    setAiStatus('');
+    $('app').inert = true;
+    $('screen-start').inert = true;
+    ai.classList.add('is-on');
+    ai.setAttribute('aria-hidden', 'false');
+    document.title = 'deckrun \u00b7 AI';
+    setTimeout(function () {
+      if (aiSessionId && aiSessionProvider === aiProviderEl.value) $('ai-prompt').focus();
+      else $('ai-key').focus();
+    }, 0);
+  }
+
+  function disconnectAi(silent) {
+    var id = aiSessionId;
+    cancelAiOperation();
+    aiSessionId = null;
+    aiSessionProvider = null;
+    $('ai-key').value = '';
+    paintAiModels([], true);
+    paintAiConnection();
+    if (!silent) setAiStatus('Key forgotten. Connect again when you want to generate.', 'ok');
+    if (id) {
+      aiRequest('/__ai/disconnect', { sessionId: id }).catch(function () {});
+    }
+  }
+
+  function loadAiModels(quiet) {
+    if (aiBusy) return Promise.reject(new Error('AI request already in progress'));
+    if (!aiSessionId || aiSessionProvider !== aiProviderEl.value) {
+      setAiStatus('Connect an API key for this provider first.', 'err');
+      return Promise.reject(new Error('not connected'));
+    }
+    var mine = ++aiSeq;
+    aiAbort = new AbortController();
+    setAiBusy(true, 'loading...');
+    if (!quiet) setAiStatus('Loading available model IDs from the provider...');
+    return aiRequest('/__ai/models', { sessionId: aiSessionId }, aiAbort.signal)
+      .then(function (data) {
+        if (mine !== aiSeq) return [];
+        paintAiModels(data.models || [], true);
+        setAiStatus(
+          data.models && data.models.length
+            ? 'Loaded ' + data.models.length + ' models. Choose one or enter another supported model ID.'
+            : 'No models were listed. Enter a supported model ID manually.',
+          'ok'
+        );
+        return data.models || [];
+      })
+      .catch(function (err) {
+        if (mine !== aiSeq) return [];
+        if (err && err.name === 'AbortError') return [];
+        if (err && err.status === 401) disconnectAi(true);
+        setAiStatus('Could not load models: ' + err.message, 'err');
+        throw err;
+      })
+      .finally(function () {
+        if (mine !== aiSeq) return;
+        aiAbort = null;
+        setAiBusy(false);
+      });
+  }
+
+  function connectAi() {
+    if (aiBusy) return;
+    var key = $('ai-key').value.trim();
+    if (!key) {
+      setAiStatus('Paste an API key first.', 'err');
+      $('ai-key').focus();
+      return;
+    }
+    var provider = aiProviderEl.value;
+    var manualModel = $('ai-manual-model').checked;
+    var mine = ++aiSeq;
+    aiAbort = new AbortController();
+    setAiBusy(true, 'connecting...');
+    setAiStatus(manualModel
+      ? 'Starting a short local key session for manual model entry...'
+      : 'Checking the key and loading models...');
+    aiRequest('/__ai/connect', {
+      provider: provider,
+      apiKey: key,
+      manualModel: manualModel
+    }, aiAbort.signal)
+      .then(function (data) {
+        if (mine !== aiSeq) return;
+        // Clear the secret from the DOM before painting any response.
+        $('ai-key').value = '';
+        aiSessionId = data.sessionId;
+        aiSessionProvider = provider;
+        lsSet(K.aiProvider, provider);
+        paintAiModels(data.models || [], false);
+        paintAiConnection();
+        setAiStatus(
+          data.manual
+            ? 'Connected without listing models. Enter a supported text-generation model ID.'
+            : data.models && data.models.length
+            ? 'Connected. Choose a model and describe your deck.'
+            : 'Connected. Enter a supported model ID to continue.',
+          'ok'
+        );
+        aiModelEl.focus();
+      })
+      .catch(function (err) {
+        if (mine !== aiSeq) return;
+        if (err && err.name === 'AbortError') return;
+        setAiStatus('Could not connect: ' + err.message, 'err');
+      })
+      .finally(function () {
+        if (mine !== aiSeq) return;
+        $('ai-key').value = '';
+        aiAbort = null;
+        setAiBusy(false);
+      });
+  }
+
+  function aiDeckName(markdown, task) {
+    var heading = markdown.match(/^#\\s+(.+)$/m);
+    var clean = heading
+      ? heading[1].replace(/<[^>]*>/g, '').replace(/[*_\\[\\]]/g, '').trim().slice(0, 72)
+      : '';
+    if (task !== 'create') {
+      var current = ($('docname').value || 'deck').trim();
+      return uniqueName(current + (task === 'revise' ? ' AI revision' : ' + AI slides'));
+    }
+    if (!clean) clean = $('ai-prompt').value.trim().split(/[.!?\\n]/)[0].slice(0, 72);
+    return uniqueName(clean || 'AI deck');
+  }
+
+  function generateWithAi() {
+    if (aiBusy) return;
+    if (!aiSessionId || aiSessionProvider !== aiProviderEl.value) {
+      setAiStatus('Connect an API key before generating.', 'err');
+      return;
+    }
+
+    var model = aiModelEl.value.trim();
+    var prompt = $('ai-prompt').value.trim();
+    var task = $('ai-task').value;
+    var slideCount = parseInt($('ai-slides').value, 10);
+    var audience = $('ai-audience').value.trim();
+    if (!model) { setAiStatus('Choose or enter a model ID.', 'err'); aiModelEl.focus(); return; }
+    if (!prompt) { setAiStatus('Describe the presentation you want.', 'err'); $('ai-prompt').focus(); return; }
+    if (!(slideCount >= 2 && slideCount <= 30)) {
+      setAiStatus('Slide count must be between 2 and 30.', 'err');
+      $('ai-slides').focus();
+      return;
+    }
+    if (task !== 'create' && (state.kind !== 'markdown' || !src.value.trim())) {
+      setAiStatus('Open a Markdown deck to revise or extend it.', 'err');
+      return;
+    }
+
+    var currentMarkdown = task === 'create' ? undefined : src.value;
+    var mine = ++aiSeq;
+    aiAbort = new AbortController();
+    setAiBusy(true, 'generating...');
+    setAiStatus('Generating and validating ' + slideCount + ' slides. Deckrun will repair one malformed draft automatically...');
+    lsSet(K.aiProvider, aiProviderEl.value);
+    lsSet(K.aiModel + '.' + aiProviderEl.value, model);
+
+    aiRequest('/__ai/generate', {
+      sessionId: aiSessionId,
+      model: model,
+      task: task,
+      prompt: prompt,
+      audience: audience || undefined,
+      slideCount: slideCount,
+      currentMarkdown: currentMarkdown
+    }, aiAbort.signal)
+      .then(function (data) {
+        if (mine !== aiSeq) return;
+        var markdown = String(data.markdown || '').trim();
+        if (!markdown) throw new Error('the provider returned an empty deck');
+        saveNow();
+        var fromStart = $('screen-start').classList.contains('is-on');
+        var id = createDeck(
+          aiDeckName(markdown, task),
+          markdown + '\\n',
+          'markdown',
+          fromStart ? startTemplate : state.template,
+          fromStart ? startTransition : state.transition
+        );
+        if (!id) { noRoom(); return; }
+        closeAi(false);
+        hideStartScreenSilently();
+        openDeck(id);
+        toast('AI deck created. Review the content, then edit or present it.');
+      })
+      .catch(function (err) {
+        if (mine !== aiSeq) return;
+        if (err && err.status === 401) disconnectAi(true);
+        if (err && err.name === 'AbortError') setAiStatus('Generation cancelled.', 'err');
+        else setAiStatus('Generation failed: ' + err.message, 'err');
+      })
+      .finally(function () {
+        if (mine !== aiSeq) return;
+        aiAbort = null;
+        setAiBusy(false);
+      });
+  }
+
+  function trapAiFocus(e) {
+    var nodes = Array.prototype.filter.call(
+      ai.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'),
+      function (node) { return node.getClientRects().length > 0; }
+    );
+    if (!nodes.length) return;
+    var first = nodes[0], last = nodes[nodes.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !ai.contains(document.activeElement))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (document.activeElement === last || !ai.contains(document.activeElement))) {
+      e.preventDefault();
+      first.focus();
+    }
   }
 
   // ── Markdown highlighting for the editor surface ───────────────────────
@@ -2476,6 +3061,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     palette.classList.remove('is-on');
     guide.classList.remove('is-on');
     $('library').classList.remove('is-on');
+    closeAi(false);
     if ($('themes').classList.contains('is-on')) closeThemes(true);
     updateDocTitle();
     if (!keepFocus) src.focus();
@@ -2600,6 +3186,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   /** No local browser to drive: hand the deck or doc to the print dialog instead. */
   function printFallback(detail) {
     var tab = window.open('about:blank', '_blank');
+    if (tab) tab.opener = null;
     var builder = state.kind === 'html' ? buildHtmlDoc : buildDeck;
     builder(true)
       .then(function (data) {
@@ -2660,6 +3247,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     expectingDeck = true;
     var builder = state.kind === 'html' ? buildHtmlDoc : buildDeck;
     var tab = window.open('about:blank', '_blank');
+    if (tab) tab.opener = null;
     builder(false)
       .then(function (data) {
         var url = location.origin + data.path +
@@ -2747,7 +3335,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       var root = frameHtml.contentDocument && frameHtml.contentDocument.documentElement;
       if (root) {
         root.dataset.theme = state.theme;
-        root.dataset.decor = decorOf(state.theme);
+        root.dataset.decor = THEME_BY_ID[state.theme].decor;
         root.dataset.size = state.size;
         root.dataset.template = state.template;
         root.dataset.transition = state.transition;
@@ -2757,17 +3345,34 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     } catch (e) {}
     try {
       if (frameHtml.contentWindow) {
-        frameHtml.contentWindow.postMessage({
+        var look = {
           type: 'theme',
           theme: state.theme,
+          decor: THEME_BY_ID[state.theme].decor,
           size: state.size,
           head: state.head,
           body: state.body,
           template: state.template,
           transition: state.transition
-        }, '*');
+        };
+        frameHtml.contentWindow.postMessage(look, '*');
+        frameHtml.contentWindow.postMessage(Object.assign({}, look, {
+          type: 'deckrun-doc-theme'
+        }), '*');
       }
     } catch (e) {}
+  }
+
+  function htmlPreviewDocument(html) {
+    var bridge = '<scr' + 'ipt data-deckrun-preview-bridge>' +
+      '(function(){window.addEventListener("message",function(e){' +
+      'if(e.source!==parent||!e.data||e.data.type!=="deckrun-doc-theme")return;' +
+      'var r=document.documentElement,d=e.data;' +
+      '["theme","decor","size","template","transition","head","body"].forEach(function(n){' +
+      'if(d[n])r.dataset[n]=String(d[n]);else delete r.dataset[n];' +
+      '});});})();' +
+      '</scr' + 'ipt>';
+    return String(html || '') + bridge;
   }
 
   /** One message for all four, since the preview applies them to one root. */
@@ -3117,7 +3722,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
     if (state.kind === 'html') {
       srcHtml.value = readDeck(id);
-      frameHtml.srcdoc = srcHtml.value;
+      frameHtml.srcdoc = htmlPreviewDocument(srcHtml.value);
       renderHtmlCounts();
       if (announce) toast('Opened ' + meta.name);
       srcHtml.focus();
@@ -3425,6 +4030,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   $('start-md-blank').addEventListener('click', startNewMarkdown);
+  $('start-ai').addEventListener('click', function () { openAi('create'); });
   $('start-md-upload').addEventListener('click', function () { $('file-any').click(); });
   $('start-html-upload').addEventListener('click', function () { $('file-any').click(); });
   $('start-html-url-go').addEventListener('click', loadHtmlUrl);
@@ -3446,6 +4052,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     else if (name === 'palette') openPalette();
     else if (name === 'decks') openLibrary();
     else if (name === 'new') newDeck();
+    else if (name === 'ai') openAi('create');
     else if (name === 'duplicate') duplicateDeck();
     else if (name === 'delete') deleteDeck(state.deckId);
   }
@@ -3487,7 +4094,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     scheduleSave();
     renderHtmlCounts();
     if (htmlPreviewTimer) clearTimeout(htmlPreviewTimer);
-    htmlPreviewTimer = setTimeout(function () { frameHtml.srcdoc = srcHtml.value; }, 140);
+    htmlPreviewTimer = setTimeout(function () {
+      frameHtml.srcdoc = htmlPreviewDocument(srcHtml.value);
+    }, 140);
   }
 
   srcHtml.addEventListener('input', onHtmlInput);
@@ -3603,6 +4212,30 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   $('btn-guide').addEventListener('click', function () { runAction('guide'); });
   $('btn-palette').addEventListener('click', openPalette);
   $('btn-new').addEventListener('click', function () { closeOverlays(); showStartScreen(); });
+  $('btn-ai').addEventListener('click', function () { openAi('create'); });
+  $('ai-connect').addEventListener('click', connectAi);
+  $('ai-refresh-models').addEventListener('click', function () {
+    loadAiModels(false).catch(function () {});
+  });
+  $('ai-forget').addEventListener('click', function () { disconnectAi(false); });
+  $('ai-generate').addEventListener('click', generateWithAi);
+  $('ai-key-toggle').addEventListener('click', function () {
+    var key = $('ai-key');
+    key.type = key.type === 'password' ? 'text' : 'password';
+    $('ai-key-toggle').textContent = key.type === 'password' ? 'show' : 'hide';
+  });
+  $('ai-key').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); connectAi(); }
+  });
+  aiProviderEl.addEventListener('change', function () {
+    var hadSession = !!aiSessionId;
+    disconnectAi(true);
+    paintAiModels([], false);
+    syncAiProviderDetails();
+    lsSet(K.aiProvider, aiProviderEl.value);
+    if (hadSession) setAiStatus('Provider changed. Connect its API key to continue.');
+    $('ai-key').focus();
+  });
   // ── Dropdown menus ─────────────────────────────────────────────────────
   // Both the export and font popovers behave the same way, so one open menu is
   // tracked here rather than each growing its own copy of this.
@@ -3738,6 +4371,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   document.addEventListener('keydown', function (e) {
     var mod = e.metaKey || e.ctrlKey;
 
+    if (ai.classList.contains('is-on')) {
+      if (e.key === 'Escape') { e.preventDefault(); closeAi(); }
+      else if (e.key === 'Tab') trapAiFocus(e);
+      else if (mod && e.key === 'Enter') { e.preventDefault(); generateWithAi(); }
+      return;
+    }
+
     if (themesOpen()) return;
 
     if ($('screen-start').classList.contains('is-on')) {
@@ -3870,6 +4510,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   // ── Frame messages ─────────────────────────────────────────────────────
   window.addEventListener('message', function (e) {
+    if (e.source !== frame.contentWindow) return;
     var m = e.data || {};
     if (m.type === 'ready') {
       // pushLook and pushFrame between them send the whole of the current
@@ -3910,6 +4551,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   document.documentElement.dataset.decor = THEME_BY_ID[state.theme].decor;
   document.documentElement.dataset.template = state.template;
   document.documentElement.dataset.transition = state.transition;
+  buildAiProviders();
   buildSizeSeg('topbar-size', false);
   buildFontMenu();
   buildTemplateMenu();

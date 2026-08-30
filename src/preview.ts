@@ -380,6 +380,7 @@ ${RICH_CONTENT_RUNTIME}
   });
 
   window.addEventListener('message', function (e) {
+    if (e.source !== window.parent) return;
     var m = e.data || {};
     if (m.type === 'render') {
       var sameSet = m.slides && slides.length === m.slides.length &&
