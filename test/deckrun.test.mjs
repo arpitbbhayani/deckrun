@@ -15,8 +15,10 @@ import {
 } from "../dist/presentation-options.js";
 import { richContentFeatures, richContentHead } from "../dist/rich-content.js";
 import { lintMarkdown } from "../dist/lint.js";
-import { generateHtml } from "../dist/generate.js";
+import { generateHtml, generateDocHtml } from "../dist/generate.js";
 import { generatePreviewHtml } from "../dist/preview.js";
+import { generateEditorHtml } from "../dist/editor.js";
+import { findFont, resolveThemeName, resolveSizeName } from "../dist/themes.js";
 
 test("Parser handles slides, notes, images, math, and reveals", () => {
   const md = `# Slide 1
@@ -123,6 +125,29 @@ unclosed code
   const badImgRes = lintMarkdown(badImgMd);
   assert.ok(badImgRes.issues.some((i) => i.rule === "missing-image-alt"));
   assert.ok(badImgRes.issues.some((i) => i.rule === "invalid-image-opacity"));
+
+  // Deck with unclosed math, long heading, dense slide, excessive reveals
+  const complexBadMd = `# Slide with an extraordinarily long heading that exceeds eighty characters in length by a substantial margin
+$$
+x + y = z
+---
+# Dense slide
+- A
+- B
+- C
+- D
+- E
+- F
+- G
+- H
+- I
+{reveal} 1 {reveal} 2 {reveal} 3 {reveal} 4 {reveal} 5 {reveal} 6 {reveal} 7 {reveal} 8 {reveal} 9 {reveal} 10 {reveal} 11
+`;
+  const complexRes = lintMarkdown(complexBadMd);
+  assert.ok(complexRes.issues.some((i) => i.rule === "unclosed-math"));
+  assert.ok(complexRes.issues.some((i) => i.rule === "long-heading"));
+  assert.ok(complexRes.issues.some((i) => i.rule === "dense-slide"));
+  assert.ok(complexRes.issues.some((i) => i.rule === "reveal-excessive"));
 });
 
 test("Generate HTML produces valid complete document with templates and transitions", () => {
@@ -144,12 +169,41 @@ test("Generate HTML produces valid complete document with templates and transiti
   assert.ok(html.includes("Test note"));
 });
 
+test("Generate Doc HTML produces valid standalone document wrapper", () => {
+  const docHtml = generateDocHtml("/__remote-doc", "My Remote Doc", false, "tokyo");
+  assert.ok(docHtml.includes('data-theme="tokyo"'));
+  assert.ok(docHtml.includes('src="/__remote-doc"'));
+  assert.ok(docHtml.includes("My Remote Doc"));
+});
+
 test("Generate preview HTML produces valid preview structure", () => {
   const html = generatePreviewHtml("gruvbox", "m", {}, "minimal", "zoom");
   assert.ok(html.includes('data-theme="gruvbox"'));
   assert.ok(html.includes('data-template="minimal"'));
   assert.ok(html.includes('data-transition="zoom"'));
   assert.ok(html.includes('id="presentation"'));
+});
+
+test("Generate editor HTML produces valid editor interface", () => {
+  const html = generateEditorHtml("dracula", "s", { head: "inter", body: "lora" }, "spotlight", "lift");
+  assert.ok(html.includes('data-theme="dracula"'));
+  assert.ok(html.includes('data-size="s"'));
+  assert.ok(html.includes('data-template="spotlight"'));
+  assert.ok(html.includes('data-transition="lift"'));
+  assert.ok(html.includes("deckrun · editor"));
+});
+
+test("Theme, font, and size resolvers function properly", () => {
+  assert.equal(resolveThemeName("nord"), "nord");
+  assert.equal(resolveThemeName("Nord"), "nord");
+  assert.equal(resolveThemeName("invalid-theme"), "nord");
+
+  assert.equal(resolveSizeName("xl"), "xl");
+  assert.equal(resolveSizeName("invalid-size"), "m");
+
+  assert.equal(findFont("inter"), "inter");
+  assert.equal(findFont("Inter"), "inter");
+  assert.equal(findFont("non-existent-font"), null);
 });
 
 test("Theme-dependent text selection highlight is configured", async () => {
