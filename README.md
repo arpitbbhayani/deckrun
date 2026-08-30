@@ -4,7 +4,7 @@ Write slides in Markdown or bring a self-contained HTML document, run a local se
 
 - **Two formats** - Markdown decks with slide-by-slide presentation, or self-contained HTML documents with continuous scrolling
 - **Live editor** - edit alongside a live preview, with autosave and a library of all your decks and docs
-- **14 themes** - unique palettes, typography, animated backdrops, four type sizes, and customizable heading and body fonts
+- **16 themes** - unique palettes, typography, animated backdrops, four type sizes, and customizable heading and body fonts
 - **Templates and motion** - four composition templates and five transitions, switchable without touching the Markdown
 - **Technical content** - KaTeX equations and Mermaid diagrams in preview, presentation, HTML, and PDF
 - **Incremental reveals** - step through bullets, prose, equations, code, or diagrams without duplicating slides
@@ -67,7 +67,7 @@ deckrun slides.md --no-open
 # Show a launch overlay that enters fullscreen on the first key or click
 deckrun slides.md --fullscreen
 
-# Pick one of the fourteen themes, at one of four type sizes
+# Pick one of the sixteen themes, at one of four type sizes
 deckrun slides.md --theme paper
 deckrun slides.md --theme paper --size xl
 
@@ -113,7 +113,7 @@ The server binds to `127.0.0.1` only, so the deck is never exposed on the networ
 | `-p, --port <number>` | `7890`  | Port to serve the presentation on                      |
 | `--no-open`           | `false` | Start the HTTP server without opening the browser      |
 | `--fullscreen`        | `false` | Prompt to enter fullscreen on the first key or click   |
-| `--theme <name>`      | `nord`     | Any of the fourteen themes, by id                   |
+| `--theme <name>`      | `nord`     | Any of the sixteen themes, by id                   |
 | `--size <name>`       | `m`     | Type size: `s`, `m`, `l`, or `xl`                       |
 | `--head-font <name>`  |         | Override the theme's heading and title face             |
 | `--body-font <name>`  |         | Override the theme's body face                          |
@@ -546,7 +546,7 @@ Images with no directive stay inline, centered in the document flow and capped a
 
 ## Themes
 
-Fourteen themes, eight dark and six light. A theme is not just a palette: each
+Sixteen themes, ten dark and six light. A theme is not just a palette: each
 one brings its own display, body, and monospace faces, its own Highlight.js
 grammar colors, and its own animated geometry behind the slides.
 
@@ -559,7 +559,9 @@ grammar colors, and its own animated geometry behind the slides.
 | `gruvbox`    | dark  | Warm amber and moss on retro brown, hatched like graph paper         |
 | `rosepine`   | dark  | Rosé Pine. Muted iris and gold on plum, under a slow aurora          |
 | `forest`     | dark  | Everforest sage on deep pine, rippling in concentric rings           |
+| `kanagawa`   | dark  | Sumi ink and sakura pink on deep indigo, calm drifting orbs          |
 | `neon`       | dark  | Electric cyan and magenta on true black, raked by light beams        |
+| `shadcn`     | dark  | Zinc graphite with a violet accent, on a sharp blueprint grid        |
 | `daylight`   | light | Catppuccin Latte, contrast-tuned for a projector. Dot matrix         |
 | `arctic`     | light | Nord inverted. Frost blue on cool paper, with contour waves          |
 | `solarized`  | light | The classic low-glare cream, paired with Lora for long prose         |
@@ -574,7 +576,7 @@ deckrun --list-themes
 
 `dark` and `light` are kept as aliases for `midnight` and `daylight`, so older
 commands and scripts keep working. So are `mocha`, `latte`, `tokyo-night`,
-`rose-pine`, and `rose-quartz`.
+`rose-pine`, `rose-quartz`, and `shadcn/ui`.
 
 In a file-backed deck the theme is baked into the page at launch, so switching
 means restarting with a different flag. In the editor it is live: `Cmd Shift L`
