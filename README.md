@@ -26,7 +26,21 @@ npx deckrun
 
 ## Installation
 
-Install globally from npm:
+Install with a single command. On Linux and macOS the installer bootstraps
+Node.js (>= 16) automatically if it's missing, then installs deckrun from npm:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.sh | sh
+```
+
+On Windows, the PowerShell installer does the same (installs the Node.js LTS
+via winget, or downloads it, when needed):
+
+```powershell
+irm https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.ps1 | iex
+```
+
+Or install globally from npm directly:
 
 ```bash
 npm install -g deckrun
