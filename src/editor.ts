@@ -98,8 +98,8 @@ html, body {
 }
 
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
-::selection { background: var(--selection-bg, var(--surface1)); color: var(--selection-text, inherit); }
-::-moz-selection { background: var(--selection-bg, var(--surface1)); color: var(--selection-text, inherit); }
+::selection { background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.35))); color: var(--selection-text, inherit); }
+::-moz-selection { background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.35))); color: var(--selection-text, inherit); }
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -390,8 +390,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   outline: none;
 }
 
-#src::selection { background: var(--selection-bg, var(--surface2)); color: transparent; }
-#src::-moz-selection { background: var(--selection-bg, var(--surface2)); color: transparent; }
+#src::selection { background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.35))); color: transparent; }
+#src::-moz-selection { background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.35))); color: transparent; }
 
 /* Markdown tokens — color only to guarantee pixel-identical alignment */
 .t-h1 { color: var(--accent); }

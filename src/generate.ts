@@ -122,11 +122,11 @@ export function renderSlide(slide: Slide, index: number): string {
 export const RESET_CSS = `/* ── Reset & base ─────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 ::selection {
-  background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.35)));
+  background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.22)));
   color: var(--selection-text, inherit);
 }
 ::-moz-selection {
-  background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.35)));
+  background: var(--selection-bg, var(--accent-line, rgba(56, 139, 253, 0.22)));
   color: var(--selection-text, inherit);
 }`;
 
