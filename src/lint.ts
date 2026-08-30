@@ -1,310 +1,262 @@
-/**
- * Static deck authoring rules, run by `deckrun lint`.
- *
- * Browser-free checks that report the source line, slide number, severity,
- * and rule id. Errors fail the command; warnings fail by default too (so the
- * command is CI-friendly), unless `--max-warnings` raises or removes the
- * threshold.
- */
-
-export type LintSeverity = "error" | "warning";
-
 export interface LintIssue {
   rule: string;
-  severity: LintSeverity;
+  severity: "error" | "warning";
   message: string;
   line: number;
   column: number;
-  /** 1-based slide number, when the issue belongs to a specific slide. */
   slide?: number;
 }
 
 export interface LintResult {
-  issues: LintIssue[];
   slides: number;
   errors: number;
   warnings: number;
-}
-
-const HEADING_MAX = 80;
-const PROSE_WORDS_MAX = 220;
-const BULLETS_MAX = 15;
-const REVEALS_PER_SLIDE_MAX = 12;
-
-interface SlideRegion {
-  text: string;
-  /** Line number (1-based) at which this slide's source starts. */
-  startLine: number;
-}
-
-/** Split the deck into slides, recording each one's starting line number. */
-function splitSlides(markdown: string): SlideRegion[] {
-  const normalized = markdown.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = normalized.split("\n");
-  const regions: SlideRegion[] = [];
-  let buffer: string[] = [];
-  let startLine = 1;
-
-  const flush = () => {
-    const text = buffer.join("\n").trim();
-    if (text.length > 0) {
-      regions.push({ text, startLine });
-    }
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^[ \t]*---[ \t]*$/.test(line)) {
-      // Separator. The slide spans lines [startLine .. current-1].
-      const text = buffer.join("\n").trim();
-      if (text.length > 0) regions.push({ text, startLine });
-      buffer = [];
-      startLine = i + 2; // next slide starts after the separator line
-    } else {
-      if (buffer.length === 0) startLine = i + 1;
-      buffer.push(line);
-    }
-  }
-  if (buffer.length > 0) {
-    const text = buffer.join("\n").trim();
-    if (text.length > 0) regions.push({ text, startLine });
-  }
-  return regions;
-}
-
-/** Absolute (1-based) line of a 0-based offset within a slide region. */
-function lineOf(region: SlideRegion, offset: number): number {
-  const before = region.text.slice(0, offset);
-  return region.startLine + before.split("\n").length - 1;
+  issues: LintIssue[];
 }
 
 export function lintMarkdown(markdown: string): LintResult {
   const issues: LintIssue[] = [];
-  const slides = splitSlides(markdown);
 
-  if (slides.length === 0) {
+  const trimmed = markdown.trim();
+  if (!trimmed) {
     issues.push({
       rule: "empty-deck",
       severity: "error",
-      message: "The deck has no slides.",
+      message: "The deck is empty.",
       line: 1,
       column: 1,
     });
-    return { issues, slides: 0, errors: 1, warnings: 0 };
+    return {
+      slides: 0,
+      errors: 1,
+      warnings: 0,
+      issues,
+    };
   }
 
-  const add = (issue: Omit<LintIssue, "line" | "column"> & { line: number; column: number }) =>
-    issues.push(issue);
+  const lines = markdown.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
 
-  slides.forEach((region, slideIndex) => {
-    const slideNumber = slideIndex + 1;
-    const lines = region.text.split("\n");
-    const rel = (line: number) => region.startLine + line;
+  // Track slide boundaries
+  interface SlideBoundary {
+    slideIndex: number;
+    startLine: number;
+    endLine: number;
+    lines: string[];
+  }
 
-    // ── Empty slide ─────────────────────────────────────────────────────
-    if (region.text.trim().length === 0) {
-      add({
-        rule: "empty-slide",
-        severity: "error",
-        message: "Slide is empty.",
-        line: region.startLine,
-        column: 1,
-        slide: slideNumber,
+  const slides: SlideBoundary[] = [];
+  let curSlideLines: string[] = [];
+  let curStartLine = 1;
+  let slideIndex = 1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^[ \t]*---[ \t]*$/.test(line)) {
+      slides.push({
+        slideIndex,
+        startLine: curStartLine,
+        endLine: i,
+        lines: curSlideLines,
       });
-      return;
+      slideIndex++;
+      curStartLine = i + 2;
+      curSlideLines = [];
+    } else {
+      curSlideLines.push(line);
     }
-
-    // ── Unclosed code fences ───────────────────────────────────────────
-    let fenceState: "open" | "closed" = "closed";
-    let fenceOpenLine = -1;
-    let lastFenceLine = -1;
-    let untagged = false;
-
-    for (let i = 0; i < lines.length; i++) {
-      const m = /^[ \t]*`{3,}(.*)$/.exec(lines[i]);
-      if (!m) continue;
-      lastFenceLine = i;
-      const token = m[1].trim();
-      if (fenceState === "open") {
-        fenceState = "closed";
-      } else {
-        fenceState = "open";
-        fenceOpenLine = i;
-        if (token.length === 0) untagged = true;
-      }
-    }
-
-    if (fenceState === "open") {
-      add({
-        rule: "unclosed-fence",
-        severity: "error",
-        message: "Code fence is not closed.",
-        line: rel(Math.max(0, fenceOpenLine)),
-        column: 1,
-        slide: slideNumber,
-      });
-    } else if (untagged) {
-      // Only report the first untagged fence on the slide.
-      for (let i = 0; i < lines.length; i++) {
-        const m = /^[ \t]*`{3,}(.*)$/.exec(lines[i]);
-        if (m && m[1].trim().length === 0) {
-          add({
-            rule: "untagged-fence",
-            severity: "warning",
-            message: "Code fence has no language; syntax highlighting won't apply.",
-            line: rel(i),
-            column: m[0].search(/`/) + 1,
-            slide: slideNumber,
-          });
-          break;
-        }
-      }
-      void lastFenceLine;
-    }
-
-    // ── Unclosed display math ──────────────────────────────────────────
-    const dollarCount = (region.text.match(/\$\$/g) || []).length;
-    if (dollarCount % 2 === 1) {
-      const at = region.text.indexOf("$$");
-      add({
-        rule: "unclosed-math",
-        severity: "error",
-        message: "Display math ($$ ... $$) is not closed.",
-        line: lineOf(region, at),
-        column: 1,
-        slide: slideNumber,
-      });
-    }
-
-    // ── Overly long headings ───────────────────────────────────────────
-    for (let i = 0; i < lines.length; i++) {
-      const m = /^#{1,6}[ \t]+(.+?)[ \t]*$/.exec(lines[i]);
-      if (m && m[1].length > HEADING_MAX) {
-        add({
-          rule: "long-heading",
-          severity: "warning",
-          message: `Heading is ${m[1].length} characters (over ${HEADING_MAX}).`,
-          line: rel(i),
-          column: 1,
-          slide: slideNumber,
-        });
-      }
-    }
-
-    // ── Excessive prose or bullets ─────────────────────────────────────
-    const proseWords = (region.text.match(/[^\s|]+/g) || []).filter(
-      (w) => !/^#|^\d+\.$|^[-*+]$|^---$/.test(w),
-    ).length;
-    if (proseWords > PROSE_WORDS_MAX) {
-      add({
-        rule: "dense-prose",
-        severity: "warning",
-        message: `Slide has roughly ${proseWords} words (over ${PROSE_WORDS_MAX}); consider splitting it.`,
-        line: region.startLine,
-        column: 1,
-        slide: slideNumber,
-      });
-    }
-
-    let bullets = 0;
-    for (let i = 0; i < lines.length; i++) {
-      if (/^[ \t]*[-*+][ \t]/.test(lines[i])) bullets++;
-    }
-    if (bullets > BULLETS_MAX) {
-      add({
-        rule: "dense-bullets",
-        severity: "warning",
-        message: `Slide has ${bullets} bullet items (over ${BULLETS_MAX}).`,
-        line: region.startLine,
-        column: 1,
-        slide: slideNumber,
-      });
-    }
-
-    // ── Image issues: missing alt text ─────────────────────────────────
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const altRe = /!\[([^\]]*)\]\([^)]*\)/g;
-      let m: RegExpExecArray | null;
-      while ((m = altRe.exec(line)) !== null) {
-        const full = m[0];
-        const alt = m[1];
-        if (alt.trim().length === 0) {
-          add({
-            rule: "image-alt",
-            severity: "warning",
-            message: "Image has no alt text.",
-            line: rel(i),
-            column: line.indexOf(full) + 1,
-            slide: slideNumber,
-          });
-        }
-      }
-    }
-
-    // ── Invalid image opacity ──────────────────────────────────────────
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const opacityRe = /!\[[^\]]*\]\([^)]*"([^"]*opacity[^"]*)"\)/gi;
-      let m: RegExpExecArray | null;
-      while ((m = opacityRe.exec(line)) !== null) {
-        const op = m[1].match(/opacity[=:]?\s*([0-9]*\.?[0-9]+)/i);
-        const value = op ? parseFloat(op[1]) : NaN;
-        if (Number.isNaN(value) || value < 0 || value > 1) {
-          add({
-            rule: "image-opacity",
-            severity: "error",
-            message: `Image opacity must be between 0 and 1 (got '${op ? op[1] : m[1]}').`,
-            line: rel(i),
-            column: line.indexOf(m[0]) + 1,
-            slide: slideNumber,
-          });
-        }
-      }
-    }
-
-    // ── Reveal markers: malformed or excessive ─────────────────────────
-    const malformed = (region.text.match(/\{reveal/g) || []).length -
-      (region.text.match(/\{reveal\}/g) || []).length;
-    const stray = (region.text.match(/reveal\}/g) || []).length -
-      (region.text.match(/\{reveal\}/g) || []).length;
-
-    if (malformed > 0) {
-      const at = region.text.indexOf("{reveal");
-      add({
-        rule: "malformed-reveal",
-        severity: "error",
-        message: "'{reveal}' marker is not closed with '}'.",
-        line: lineOf(region, at),
-        column: 1,
-        slide: slideNumber,
-      });
-    } else if (stray > 0) {
-      const at = region.text.indexOf("reveal}");
-      add({
-        rule: "malformed-reveal",
-        severity: "warning",
-        message: "Stray 'reveal}' marker without an opening '{reveal'.",
-        line: lineOf(region, at),
-        column: 1,
-        slide: slideNumber,
-      });
-    }
-
-    const revealCount = (region.text.match(/\{reveal\}/g) || []).length;
-    if (revealCount > REVEALS_PER_SLIDE_MAX) {
-      add({
-        rule: "excessive-reveals",
-        severity: "warning",
-        message: `Slide has ${revealCount} reveal markers (over ${REVEALS_PER_SLIDE_MAX}).`,
-        line: region.startLine,
-        column: 1,
-        slide: slideNumber,
-      });
-    }
+  }
+  slides.push({
+    slideIndex,
+    startLine: curStartLine,
+    endLine: lines.length,
+    lines: curSlideLines,
   });
 
+  // Global & Slide checks
+  let inCodeFence = false;
+  let fenceStartLine = 1;
+  let fenceStartCol = 1;
+
+  let inDisplayMath = false;
+  let mathStartLine = 1;
+  let mathStartCol = 1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const lineNum = i + 1;
+    const line = lines[i];
+
+    // Determine current slide number
+    const currentSlide =
+      slides.find((s) => lineNum >= s.startLine && lineNum <= s.endLine)?.slideIndex ??
+      1;
+
+    // Check code fences
+    const fenceMatch = line.match(/^(\s*)(`{3,}|~{3,})(.*)$/);
+    if (fenceMatch) {
+      if (!inCodeFence) {
+        inCodeFence = true;
+        fenceStartLine = lineNum;
+        fenceStartCol = fenceMatch[1].length + 1;
+        const tag = fenceMatch[3].trim();
+        if (!tag) {
+          issues.push({
+            rule: "untagged-code-fence",
+            severity: "warning",
+            message: "Code fence has no language tag for syntax highlighting.",
+            line: lineNum,
+            column: fenceStartCol,
+            slide: currentSlide,
+          });
+        }
+      } else {
+        inCodeFence = false;
+      }
+    }
+
+    // Check display math
+    if (!inCodeFence) {
+      if (/^\s*\$\$\s*$/.test(line) || /^\s*\\\[\s*$/.test(line)) {
+        if (!inDisplayMath) {
+          inDisplayMath = true;
+          mathStartLine = lineNum;
+          mathStartCol = 1;
+        } else {
+          inDisplayMath = false;
+        }
+      } else if (line.includes("$$")) {
+        const occurrences = (line.match(/\$\$/g) || []).length;
+        if (occurrences % 2 !== 0) {
+          inDisplayMath = !inDisplayMath;
+          if (inDisplayMath) {
+            mathStartLine = lineNum;
+            mathStartCol = line.indexOf("$$") + 1;
+          }
+        }
+      }
+
+      // Check headings
+      const headingMatch = line.match(/^(\s*#{1,6}\s+)(.*)$/);
+      if (headingMatch && headingMatch[2].length > 80) {
+        issues.push({
+          rule: "long-heading",
+          severity: "warning",
+          message: `Heading is ${headingMatch[2].length} characters long; consider shortening for presentation readability.`,
+          line: lineNum,
+          column: headingMatch[1].length + 1,
+          slide: currentSlide,
+        });
+      }
+
+      // Check image directives
+      const imgRegex = /!\[([^\]]*)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g;
+      let imgMatch: RegExpExecArray | null;
+      while ((imgMatch = imgRegex.exec(line)) !== null) {
+        const alt = imgMatch[1].trim();
+        const title = imgMatch[3] ?? "";
+        const col = imgMatch.index + 1;
+
+        if (!alt) {
+          issues.push({
+            rule: "missing-image-alt",
+            severity: "warning",
+            message: "Image is missing alt text.",
+            line: lineNum,
+            column: col,
+            slide: currentSlide,
+          });
+        }
+
+        if (title) {
+          const opMatch = title.toLowerCase().match(/opacity[=:]?\s*([^\s"]+)/);
+          if (opMatch) {
+            const val = parseFloat(opMatch[1]);
+            if (isNaN(val) || val < 0 || val > 1) {
+              issues.push({
+                rule: "invalid-image-opacity",
+                severity: "warning",
+                message: `Invalid image opacity '${opMatch[1]}'; expected a number between 0 and 1.`,
+                line: lineNum,
+                column: col,
+                slide: currentSlide,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (inCodeFence) {
+    issues.push({
+      rule: "unclosed-code-fence",
+      severity: "error",
+      message: "Code fence was opened but never closed.",
+      line: fenceStartLine,
+      column: fenceStartCol,
+    });
+  }
+
+  if (inDisplayMath) {
+    issues.push({
+      rule: "unclosed-math",
+      severity: "error",
+      message: "Display math block was opened but never closed.",
+      line: mathStartLine,
+      column: mathStartCol,
+    });
+  }
+
+  // Per-slide checks
+  for (const s of slides) {
+    const slideContent = s.lines.join("\n").trim();
+    if (!slideContent) {
+      issues.push({
+        rule: "empty-slide",
+        severity: "warning",
+        message: `Slide ${s.slideIndex} is empty.`,
+        line: s.startLine,
+        column: 1,
+        slide: s.slideIndex,
+      });
+      continue;
+    }
+
+    // Check bullet density
+    const bullets = s.lines.filter((l) =>
+      /^\s*([-*+]|\d+[.)])\s+/.test(l)
+    );
+    if (bullets.length > 8) {
+      issues.push({
+        rule: "dense-slide",
+        severity: "warning",
+        message: `Slide ${s.slideIndex} has ${bullets.length} bullets (recommended maximum is 8).`,
+        line: s.startLine,
+        column: 1,
+        slide: s.slideIndex,
+      });
+    }
+
+    // Check reveal markers
+    const revealCount = (slideContent.match(/\{reveal\}/g) || []).length;
+    if (revealCount > 10) {
+      issues.push({
+        rule: "reveal-excessive",
+        severity: "warning",
+        message: `Slide ${s.slideIndex} has ${revealCount} reveal markers (recommended maximum is 10).`,
+        line: s.startLine,
+        column: 1,
+        slide: s.slideIndex,
+      });
+    }
+  }
+
   const errors = issues.filter((i) => i.severity === "error").length;
-  const warnings = issues.length - errors;
-  return { issues, slides: slides.length, errors, warnings };
+  const warnings = issues.filter((i) => i.severity === "warning").length;
+
+  return {
+    slides: slides.length,
+    errors,
+    warnings,
+    issues,
+  };
 }

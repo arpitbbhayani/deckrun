@@ -365,48 +365,6 @@ const SPECS: Record<string, ThemeSpec> = {
     hljs: `${HL}atom-one-dark.min.css`,
   },
 
-  kanagawa: {
-    label: "kanagawa",
-    mood: "dark",
-    blurb: "Kanagawa. Sumi ink and sakura pink, calm drifting orbs.",
-    neutrals: {
-      crust: "#16161d", mantle: "#1a1a22", base: "#1f1f28",
-      surface0: "#2a2a37", surface1: "#363646", surface2: "#454557",
-      overlay0: "#727169", overlay1: "#8a897d",
-      subtext0: "#b5af95", subtext1: "#c8c093", text: "#dcd7ba",
-    },
-    accents: {
-      lavender: "#b39ac1", blue: "#7e9cd8", sapphire: "#61a6b4", sky: "#a3d4d5",
-      teal: "#6a9589", green: "#98bb6c", yellow: "#c0a36e", peach: "#ffa066",
-      red: "#c34043", mauve: "#957fb8", pink: "#d27e99",
-    },
-    roles: { accent: "blue", accent2: "pink", accent3: "teal" },
-    type: { display: "sora", body: "inter", mono: "jetbrains", weight: 600, tracking: "-0.02em" },
-    decor: "orbs",
-    hljs: `${HL}github-dark-dimmed.min.css`,
-  },
-
-  shadcn: {
-    label: "shadcn",
-    mood: "dark",
-    blurb: "Zinc graphite with a violet accent, on a sharp blueprint grid.",
-    neutrals: {
-      crust: "#09090b", mantle: "#0c0c0f", base: "#0f0f12",
-      surface0: "#18181b", surface1: "#27272a", surface2: "#3f3f46",
-      overlay0: "#52525b", overlay1: "#71717a",
-      subtext0: "#a1a1aa", subtext1: "#d4d4d8", text: "#fafafa",
-    },
-    accents: {
-      lavender: "#a78bfa", blue: "#60a5fa", sapphire: "#38bdf8", sky: "#7dd3fc",
-      teal: "#2dd4bf", green: "#4ade80", yellow: "#facc15", peach: "#fb923c",
-      red: "#f87171", mauve: "#8b5cf6", pink: "#f472b6",
-    },
-    roles: { accent: "mauve", accent2: "blue", accent3: "teal" },
-    type: { display: "inter", body: "inter", mono: "jetbrains", weight: 700, tracking: "-0.02em" },
-    decor: "grid",
-    hljs: `${HL}github-dark.min.css`,
-  },
-
   // ── Light ──────────────────────────────────────────────────────────────
   daylight: {
     label: "daylight",
@@ -540,7 +498,7 @@ const SPECS: Record<string, ThemeSpec> = {
  * calmest to loudest.
  */
 export const THEME_IDS = [
-  "midnight", "tokyo", "nord", "dracula", "gruvbox", "rosepine", "forest", "kanagawa", "neon", "shadcn",
+  "midnight", "tokyo", "nord", "dracula", "gruvbox", "rosepine", "forest", "neon",
   "daylight", "arctic", "solarized", "paper", "rosequartz", "swiss",
 ] as const;
 
@@ -559,7 +517,6 @@ const ALIASES: Record<string, string> = {
   "tokyo-night": "tokyo",
   "rose-pine": "rosepine",
   "rose-quartz": "rosequartz",
-  "shadcn/ui": "shadcn",
 };
 
 export const DEFAULT_THEME = "nord";
@@ -680,6 +637,8 @@ function themeVars(t: Theme): string {
     ["glow", alpha(accent, dark ? 0.34 : 0.22)],
     ["gradient", `linear-gradient(115deg, ${accent}, ${accent2} 58%, ${accent3})`],
     ["accent-fade", `linear-gradient(90deg, ${accent}, ${alpha(accent, 0.45)} 62%, transparent)`],
+    ["selection-bg", alpha(accent, dark ? 0.38 : 0.28)],
+    ["selection-text", "inherit"],
 
     ["surface-soft", alpha(n.surface0, dark ? 0.34 : 0.42)],
     ["crust-overlay", alpha(n.crust, dark ? 0.84 : 0.88)],

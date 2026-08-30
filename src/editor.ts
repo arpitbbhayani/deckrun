@@ -98,7 +98,8 @@ html, body {
 }
 
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
-::selection { background: var(--surface1); }
+::selection { background: var(--selection-bg, var(--surface1)); color: var(--selection-text, inherit); }
+::-moz-selection { background: var(--selection-bg, var(--surface1)); color: var(--selection-text, inherit); }
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -389,7 +390,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   outline: none;
 }
 
-#src::selection { background: var(--surface2); color: transparent; }
+#src::selection { background: var(--selection-bg, var(--surface2)); color: transparent; }
+#src::-moz-selection { background: var(--selection-bg, var(--surface2)); color: transparent; }
 
 /* Markdown tokens — color only to guarantee pixel-identical alignment */
 .t-h1 { color: var(--accent); }
@@ -3778,7 +3780,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       if (key === 'k' && !e.shiftKey && md) { e.preventDefault(); openPalette(); }
       else if (key === 'o') { e.preventDefault(); openLibrary(); }
       else if (key === '/' && md) { e.preventDefault(); runAction('guide'); }
-      else if (key === 's' && e.shiftKey) { e.preventDefault(); exportPdf(); }
+      else if (key === 'p' || (key === 's' && e.shiftKey)) { e.preventDefault(); exportPdf(); }
       else if (key === 's') { e.preventDefault(); saveNow(); download(); }
       else if (key === 'enter') { e.preventDefault(); present(); }
       else if (key === 'd' && md) { e.preventDefault(); insertSnippet(bySnippetId['slide-break']); }

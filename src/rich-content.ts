@@ -1,18 +1,3 @@
-/**
- * Rich content support: KaTeX math and Mermaid diagrams.
- *
- * The parser marks math as `.math-source` nodes (inline span or block div,
- * carrying the TeX in text and `data-display` as the display mode), and
- * Mermaid slides come through as standard marked fenced `<code
- * class="language-mermaid">` blocks. At runtime `deckrunRenderRichContent`
- * walks the deck, renders KaTeX in place, replaces Mermaid code blocks with
- * rendered svg, and returns a promise that resolves when everything is ready
- * (used to gate print/PDF export).
- *
- * `richContentHead` chooses either the locally-vendored assets (`/__vendor`)
- * or pinned CDNs for a standalone page.
- */
-
 import type { Slide } from "./parser.js";
 
 export interface RichFeatures {
@@ -20,211 +5,179 @@ export interface RichFeatures {
   mermaid: boolean;
 }
 
-const MATH_CLASS = "math-source";
-const MERMAID_LANG = "language-mermaid";
-
-/** Scan a deck's rendered slides for anything that needs KaTeX or Mermaid. */
 export function richContentFeatures(slides: Slide[]): RichFeatures {
   let math = false;
   let mermaid = false;
   for (const slide of slides) {
-    const html = slide.html ?? "";
-    if (!math && html.includes(MATH_CLASS)) math = true;
-    if (!mermaid && html.includes(MERMAID_LANG)) mermaid = true;
-    if (math && mermaid) break;
+    if (!math && (slide.html.includes('class="math-source"') || slide.html.includes("math-source"))) {
+      math = true;
+    }
+    if (
+      !mermaid &&
+      (slide.html.includes("language-mermaid") ||
+        slide.html.includes("lang-mermaid") ||
+        slide.html.includes('class="mermaid"'))
+    ) {
+      mermaid = true;
+    }
   }
   return { math, mermaid };
 }
 
-// Pinned versions, matched to the vendored packages in package.json.
-const KATEX_VERSION = "0.18.4";
-const MERMAID_VERSION = "11.17.2";
-
-/**
- * The `<head>` fragment that pulls in KaTeX and/or Mermaid.
- * `mode: "local"` points at this server's `/__vendor` routes; `"cdn"` points
- * at pinned CDNs, which is what a standalone page export uses.
- */
-export function richContentHead(features: RichFeatures, mode: "local" | "cdn"): string {
-  const base = "https://cdn.jsdelivr.net";
+export function richContentHead(
+  features: RichFeatures,
+  source: "local" | "cdn" = "local"
+): string {
   const parts: string[] = [];
-
   if (features.math) {
-    if (mode === "cdn") {
-      parts.push(
-        `<link rel="stylesheet" href="${base}/npm/katex@${KATEX_VERSION}/dist/katex.min.css">`,
-        `<script defer src="${base}/npm/katex@${KATEX_VERSION}/dist/katex.min.js"></script>`,
-      );
+    if (source === "cdn") {
+      parts.push('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css">');
+      parts.push('<script src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>');
     } else {
-      parts.push(
-        `<link rel="stylesheet" href="/__vendor/katex.min.css">`,
-        `<script defer src="/__vendor/katex.min.js"></script>`,
-      );
+      parts.push('<link rel="stylesheet" href="/__vendor/katex.min.css">');
+      parts.push('<script src="/__vendor/katex.min.js"></script>');
     }
   }
-
   if (features.mermaid) {
-    if (mode === "cdn") {
-      parts.push(
-        `<script defer type="module" src="${base}/npm/mermaid@${MERMAID_VERSION}/dist/mermaid.min.js"></script>`,
-      );
+    if (source === "cdn") {
+      parts.push('<script src="https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js"></script>');
     } else {
-      parts.push(
-        `<script defer src="/__vendor/mermaid.min.js"></script>`,
-      );
+      parts.push('<script src="/__vendor/mermaid.min.js"></script>');
     }
   }
-
   return parts.join("\n  ");
 }
 
-export const RICH_CONTENT_CSS = `
-/* TeX placeholder before KaTeX takes over. */
+export const RICH_CONTENT_CSS = `/* ── Rich Content (Math & Diagrams) ─────────────────────────────────────── */
+
 .math-source {
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-  color: var(--accent2);
-  white-space: pre-wrap;
-  word-break: break-word;
-  opacity: 0.85;
+  font-family: inherit;
 }
 
-.math-source[data-display="true"] {
-  display: block;
-  text-align: center;
-  margin: 0.8em 0;
+div.math-source {
+  display: flex;
+  justify-content: center;
+  margin: 1.2em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
-.math-source[data-display="false"] {
+span.math-source {
   display: inline;
 }
 
-/* Mermaid wrapper: keep the diagram from blowing past the slide. */
+.katex-display {
+  margin: 0.8em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.katex {
+  font-size: 1.15em;
+  text-rendering: auto;
+}
+
+.math-error {
+  color: var(--maroon, #f38ba8);
+  background: var(--surface0, rgba(255, 0, 0, 0.1));
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85em;
+}
+
 .mermaid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 1.2em auto;
   max-width: 100%;
-  overflow: auto;
-  text-align: center;
-  margin: 0.6em 0;
+  overflow: hidden;
 }
 
 .mermaid svg {
   max-width: 100%;
   height: auto;
 }
+
+.mermaid-error {
+  color: var(--maroon, #f38ba8);
+  background: var(--surface0, rgba(255, 0, 0, 0.1));
+  border: 1px solid var(--maroon, #f38ba8);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.9em;
+  white-space: pre-wrap;
+  margin: 1em 0;
+}
 `;
 
-export const RICH_CONTENT_RUNTIME = `
-(function () {
-  'use strict';
-
-  function katexReady() {
-    return typeof window.katex !== 'undefined' && window.katex.render;
-  }
-
-  function renderMath(root) {
-    var nodes = root.querySelectorAll('.math-source');
-    var pending = [];
-    for (var i = 0; i < nodes.length; i++) {
-      (function (node) {
-        if (katexReady()) {
-          var tex = node.textContent || '';
-          var display = node.getAttribute('data-display') === 'true';
-          try {
-            window.katex.render(tex, node, {
-              displayMode: display,
-              throwOnError: false,
-            });
-            return; // rendered synchronously
-          } catch (e) {
-            node.textContent = tex; // leave the raw TeX visible
-          }
-        }
-        // If KaTeX hasn't loaded yet, retry briefly then give up.
-        pending.push(node);
-      })(nodes[i]);
-    }
-    return pending.length === 0
-      ? Promise.resolve()
-      : new Promise(function (resolve) {
-          var tries = 0;
-          var timer = setInterval(function () {
-            tries++;
-            var remaining = [];
-            for (var j = 0; j < pending.length; j++) {
-              var node = pending[j];
-              var tex = node.textContent || '';
-              var display = node.getAttribute('data-display') === 'true';
-              if (katexReady()) {
-                try {
-                  window.katex.render(tex, node, { displayMode: display, throwOnError: false });
-                  continue;
-                } catch (e) { /* fall through */ }
-              }
-              remaining.push(node);
-            }
-            pending = remaining;
-            if (pending.length === 0 || tries > 40) {
-              clearInterval(timer);
-              resolve();
-            }
-          }, 125);
-        });
-  }
-
-  function renderMermaid(root) {
-    var blocks = root.querySelectorAll('pre > code.' + 'language-mermaid');
-    var codes = Array.prototype.slice.call(blocks);
-    if (codes.length === 0) return Promise.resolve();
-
-    // Hide the raw source while rendering.
-    codes.forEach(function (code) {
-      var pre = code.parentElement;
-      if (pre) pre.style.display = 'none';
-    });
-
-    function renderNext(i) {
-      if (i >= codes.length) return Promise.resolve();
-      var code = codes[i];
-      var text = (code.textContent || '').trim();
-      var pre = code.parentElement;
-      var wrapper = document.createElement('div');
-      wrapper.className = 'mermaid';
-      pre.parentNode.replaceChild(wrapper, pre);
-
-      var mmd = window.mermaid ||
-        (window.mermaid && window.mermaid.default) ||
-        null;
-      if (!mmd) {
-        wrapper.textContent = 'mermaid unavailable';
-        return renderNext(i + 1);
-      }
-
-      try {
-        var init = mmd.initialize || mmd.default && mmd.default.initialize;
-        if (init) init.call(mmd, { startOnLoad: false, theme: 'neutral' });
-      } catch (e) { /* ignore init errors */ }
-
-      var render = mmd.render || (mmd.default && mmd.default.render);
-      return Promise.resolve()
-        .then(function () {
-          if (render) return render('mermaid-' + i, text);
-          return Promise.reject(new Error('no render'));
-        })
-        .then(function (result) {
-          wrapper.innerHTML = result.svg || '';
-        })
-        .catch(function () {
-          wrapper.textContent = text;
-        })
-        .then(function () { return renderNext(i + 1); });
-    }
-
-    return renderNext(0);
-  }
-
+export const RICH_CONTENT_RUNTIME = `(function () {
   window.deckrunRenderRichContent = function (root) {
     if (!root) return Promise.resolve();
-    return Promise.all([renderMath(root), renderMermaid(root)]);
+
+    // 1. Render KaTeX math
+    if (window.katex) {
+      var mathNodes = root.querySelectorAll('.math-source:not([data-rendered])');
+      for (var i = 0; i < mathNodes.length; i++) {
+        var el = mathNodes[i];
+        var tex = el.textContent || '';
+        var isDisplay = el.dataset.display === 'true';
+        try {
+          window.katex.render(tex, el, {
+            displayMode: isDisplay,
+            throwOnError: false,
+            output: 'htmlAndMathml'
+          });
+          el.setAttribute('data-rendered', 'true');
+        } catch (err) {
+          el.innerHTML = '<span class="math-error">' + (err && err.message ? err.message : 'Math rendering error') + '</span>';
+          el.setAttribute('data-rendered', 'true');
+        }
+      }
+    }
+
+    // 2. Render Mermaid diagrams
+    var mermaidPromises = [];
+    var codeBlocks = root.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
+    if (codeBlocks.length > 0 && window.mermaid) {
+      try {
+        window.mermaid.initialize({
+          startOnLoad: false,
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+      } catch (e) {}
+
+      for (var j = 0; j < codeBlocks.length; j++) {
+        (function (codeEl) {
+          var preEl = codeEl.closest('pre');
+          if (!preEl || preEl.dataset.rendered) return;
+          preEl.dataset.rendered = 'true';
+          var code = codeEl.textContent || '';
+          var container = document.createElement('div');
+          container.className = 'mermaid';
+          preEl.parentNode.insertBefore(container, preEl);
+          preEl.style.display = 'none';
+
+          var id = 'mermaid-' + Math.random().toString(36).slice(2, 10);
+          var p = window.mermaid.render(id, code)
+            .then(function (res) {
+              container.innerHTML = res.svg;
+              preEl.remove();
+            })
+            .catch(function (err) {
+              container.className = 'mermaid-error';
+              container.textContent = 'Mermaid Error: ' + (err && err.message ? err.message : String(err));
+              preEl.remove();
+            });
+          mermaidPromises.push(p);
+        })(codeBlocks[j]);
+      }
+    }
+
+    return Promise.all(mermaidPromises).then(function () {});
   };
 })();
 `;

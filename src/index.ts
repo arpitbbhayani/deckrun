@@ -178,6 +178,8 @@ interface DeckMode {
   kind: "deck";
   html: string;
   remoteDoc?: string;
+  title?: string;
+  origin?: string;
 }
 
 interface EditorMode {
@@ -602,6 +604,38 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
         return;
       }
 
+      if (mode.kind === "deck" && pathname === "/__pdf") {
+        const browser = await findBrowser();
+        if (!browser) {
+          res.writeHead(501, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              error: "no browser",
+              detail:
+                "No Chrome, Chromium, Edge, or Brave found. Set DECKRUN_BROWSER to one to export PDFs directly.",
+            })
+          );
+          return;
+        }
+
+        try {
+          const pdf = await renderPdfSerial(`${mode.origin}/`, browser);
+          const filename = safeFilename(mode.title || "deck") + ".pdf";
+          res.writeHead(200, {
+            "Content-Type": "application/pdf",
+            "Content-Length": pdf.length,
+            "Content-Disposition": `attachment; filename="${filename}"`,
+            "Cache-Control": "no-store",
+          });
+          res.end(pdf);
+        } catch (err) {
+          const detail = err instanceof PdfError ? err.message : "rendering failed";
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "render failed", detail }));
+        }
+        return;
+      }
+
       if (mode.kind === "editor" && (await handleEditorRoute(mode, pathname, req, res))) {
         return;
       }
@@ -912,6 +946,7 @@ program
             const title = deckTitle(slides, basename(absPath, extname(absPath)));
             mode = {
               kind: "deck",
+              title,
               html: generateHtml(slides, title, fullscreen, theme, size, fonts, { template, transition }),
             };
 
@@ -930,7 +965,7 @@ program
       }
 
       const port = await findFreePort(parseInt(opts.port, 10));
-      if (mode.kind === "editor") mode.origin = `http://127.0.0.1:${port}`;
+      mode.origin = `http://127.0.0.1:${port}`;
       const url = await serve(mode, baseDir, port);
       const label = mode.kind === "editor" ? "editor" : "present";
 

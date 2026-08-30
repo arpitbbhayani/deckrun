@@ -1,291 +1,304 @@
-/**
- * The composition-template and transition registry.
- *
- * A template owns spacing, alignment, rules, image treatment, and the
- * overall reading rhythm. A transition owns the spatial motion between
- * slides. Neither touches the Markdown: switching only changes the root
- * `data-template` / `data-transition` attribute and the CSS below, so an
- * existing deck transforms instantly.
- *
- * Append an entry to the arrays and it appears everywhere: the CLI's
- * `--template` / `--transition` flags, `--list-templates` /
- * `--list-transitions`, the editor's template menu and start screen, the
- * live preview, and the HTML/PDF export.
- */
+export type TemplateName = "classic" | "minimal" | "editorial" | "spotlight";
+export type TransitionName = "slide" | "fade" | "zoom" | "lift" | "none";
 
-// ── The templates ─────────────────────────────────────────────────────────
+export const DEFAULT_TEMPLATE: TemplateName = "classic";
+export const DEFAULT_TRANSITION: TransitionName = "slide";
 
-export interface TemplateSpec {
-  id: string;
+export const TEMPLATE_IDS: readonly TemplateName[] = [
+  "classic",
+  "minimal",
+  "editorial",
+  "spotlight",
+] as const;
+
+export const TRANSITION_IDS: readonly TransitionName[] = [
+  "slide",
+  "fade",
+  "zoom",
+  "lift",
+  "none",
+] as const;
+
+export interface OptionSummary<T extends string> {
+  id: T;
   label: string;
   blurb: string;
 }
 
-export const TEMPLATES: TemplateSpec[] = [
-  { id: "classic",   label: "classic",   blurb: "The original balanced deckrun layout" },
-  { id: "minimal",   label: "minimal",   blurb: "Quiet surfaces, wider margins, fewer decorative treatments" },
-  { id: "editorial", label: "editorial", blurb: "Strong rules and magazine-like reading rhythm" },
-  { id: "spotlight", label: "spotlight", blurb: "Centered, high-impact composition for concise keynote slides" },
-];
-
-export const TEMPLATE_BY_ID: Record<string, TemplateSpec> = Object.fromEntries(
-  TEMPLATES.map((t) => [t.id, t])
-);
-
-export const DEFAULT_TEMPLATE = "classic";
-
-export type TemplateName = string;
-
-const TEMPLATE_ALIASES: Record<string, string> = {
-  "slide": "classic",
-  "simple": "minimal",
-  "clean": "minimal",
-  "poster": "spotlight",
+export const TEMPLATE_SPECS: Record<TemplateName, { label: string; blurb: string }> = {
+  classic: {
+    label: "Classic",
+    blurb: "The original balanced deckrun layout",
+  },
+  minimal: {
+    label: "Minimal",
+    blurb: "Quiet surfaces, wider margins, fewer decorative treatments",
+  },
+  editorial: {
+    label: "Editorial",
+    blurb: "Strong rules and magazine-like reading rhythm",
+  },
+  spotlight: {
+    label: "Spotlight",
+    blurb: "Centered, high-impact composition for concise keynote slides",
+  },
 };
 
-export function findTemplate(input: string | undefined | null): string | null {
+export const TRANSITION_SPECS: Record<TransitionName, { label: string; blurb: string }> = {
+  slide: {
+    label: "Slide",
+    blurb: "Horizontal sliding transition between slides",
+  },
+  fade: {
+    label: "Fade",
+    blurb: "Cross-fade between slides",
+  },
+  zoom: {
+    label: "Zoom",
+    blurb: "Scale up and down between slides",
+  },
+  lift: {
+    label: "Lift",
+    blurb: "Vertical rising transition between slides",
+  },
+  none: {
+    label: "None",
+    blurb: "Instant cut between slides",
+  },
+};
+
+export function findTemplate(input: string | undefined | null): TemplateName | null {
   if (!input) return null;
   const key = String(input).trim().toLowerCase();
-  if (TEMPLATE_BY_ID[key]) return key;
-  return TEMPLATE_ALIASES[key] ?? null;
+  for (const id of TEMPLATE_IDS) {
+    if (id === key) return id;
+    if (TEMPLATE_SPECS[id].label.toLowerCase() === key) return id;
+  }
+  return null;
 }
 
 export function resolveTemplateName(input: string | undefined | null): TemplateName {
   return findTemplate(input) ?? DEFAULT_TEMPLATE;
 }
 
-export interface TemplateSummary {
-  id: string;
-  label: string;
-  blurb: string;
+export function templateSummaries(): Array<OptionSummary<TemplateName>> {
+  return TEMPLATE_IDS.map((id) => ({
+    id,
+    label: TEMPLATE_SPECS[id].label,
+    blurb: TEMPLATE_SPECS[id].blurb,
+  }));
 }
 
-/** What the editor's template picker and menu list. */
-export function templateSummaries(): TemplateSummary[] {
-  return TEMPLATES;
-}
-
-/** One line per template, for `deckrun --list-templates`. */
 export function templateListing(): string[] {
-  const pad = Math.max(...TEMPLATES.map((t) => t.id.length));
-  return TEMPLATES.map((t) => `${t.id.padEnd(pad)}  ${t.blurb}`);
+  const pad = Math.max(...TEMPLATE_IDS.map((id) => id.length));
+  return TEMPLATE_IDS.map((id) => {
+    const s = TEMPLATE_SPECS[id];
+    return `${id.padEnd(pad)}  ${s.label.padEnd(10)}  ${s.blurb}`;
+  });
 }
 
-// ── The transitions ───────────────────────────────────────────────────────
-
-export interface TransitionSpec {
-  id: string;
-  label: string;
-  blurb: string;
-}
-
-export const TRANSITIONS: TransitionSpec[] = [
-  { id: "slide", label: "slide", blurb: "Slides in from the side, direction-aware" },
-  { id: "fade",  label: "fade",  blurb: "Crossfades between slides" },
-  { id: "zoom",  label: "zoom",  blurb: "The incoming slide zooms in from a hint of distance" },
-  { id: "lift",  label: "lift",  blurb: "The new slide lifts up from beneath" },
-  { id: "none",  label: "none",  blurb: "No motion; slides snap cleanly" },
-];
-
-export const TRANSITION_BY_ID: Record<string, TransitionSpec> = Object.fromEntries(
-  TRANSITIONS.map((t) => [t.id, t])
-);
-
-export const DEFAULT_TRANSITION = "slide";
-
-export type TransitionName = string;
-
-const TRANSITION_ALIASES: Record<string, string> = {
-  "slide-left": "slide",
-  "fade-in": "fade",
-  "crossfade": "fade",
-};
-
-export function findTransition(input: string | undefined | null): string | null {
+export function findTransition(input: string | undefined | null): TransitionName | null {
   if (!input) return null;
   const key = String(input).trim().toLowerCase();
-  if (TRANSITION_BY_ID[key]) return key;
-  return TRANSITION_ALIASES[key] ?? null;
+  for (const id of TRANSITION_IDS) {
+    if (id === key) return id;
+    if (TRANSITION_SPECS[id].label.toLowerCase() === key) return id;
+  }
+  return null;
 }
 
 export function resolveTransitionName(input: string | undefined | null): TransitionName {
   return findTransition(input) ?? DEFAULT_TRANSITION;
 }
 
-export interface TransitionSummary {
-  id: string;
-  label: string;
-  blurb: string;
+export function transitionSummaries(): Array<OptionSummary<TransitionName>> {
+  return TRANSITION_IDS.map((id) => ({
+    id,
+    label: TRANSITION_SPECS[id].label,
+    blurb: TRANSITION_SPECS[id].blurb,
+  }));
 }
 
-/** What the editor's transition picker and menu list. */
-export function transitionSummaries(): TransitionSummary[] {
-  return TRANSITIONS;
-}
-
-/** One line per transition, for `deckrun --list-transitions`. */
 export function transitionListing(): string[] {
-  const pad = Math.max(...TRANSITIONS.map((t) => t.id.length));
-  return TRANSITIONS.map((t) => `${t.id.padEnd(pad)}  ${t.blurb}`);
+  const pad = Math.max(...TRANSITION_IDS.map((id) => id.length));
+  return TRANSITION_IDS.map((id) => {
+    const s = TRANSITION_SPECS[id];
+    return `${id.padEnd(pad)}  ${s.label.padEnd(8)}  ${s.blurb}`;
+  });
 }
 
-// ── CSS ───────────────────────────────────────────────────────────────────
+export const TEMPLATE_CSS = `/* ── Templates ──────────────────────────────────────────────────────────── */
 
-/**
- * Composition styles. Each template is scoped to the root `data-template`
- * attribute, and only changes layout and treatment — never color or type,
- * which belong to the theme — so the two compose cleanly.
- */
-export const TEMPLATE_CSS = `
-/* ── Template: classic ──────────────────────────────────────────────── */
-html[data-template="classic"] .slide__content {
-  max-width: 56rem;
-}
-
-html[data-template="classic"] .slide {
-  --slide-pad-x: 9vw;
+/* Minimal */
+:root[data-template="minimal"] {
+  --slide-pad-x: 10vw;
   --slide-pad-y: 8vh;
 }
-
-/* ── Template: minimal ──────────────────────────────────────────────── */
-html[data-template="minimal"] .slide {
-  --slide-pad-x: 13vw;
-  --slide-pad-y: 10vh;
+:root[data-template="minimal"] #backdrop {
+  opacity: 0.15;
+}
+:root[data-template="minimal"] .slide__content h1 {
+  letter-spacing: -0.02em;
+}
+:root[data-template="minimal"] blockquote {
+  border-left-width: 2px;
+  background: transparent;
+}
+:root[data-template="minimal"] pre {
+  border: 1px solid var(--surface0);
 }
 
-html[data-template="minimal"] .slide__content {
-  max-width: 46rem;
+/* Editorial */
+:root[data-template="editorial"] {
+  --slide-pad-x: 7vw;
 }
-
-html[data-template="minimal"] #backdrop {
-  opacity: 0.35;
-}
-
-html[data-template="minimal"] h1,
-html[data-template="minimal"] h2,
-html[data-template="minimal"] h3 {
-  text-shadow: none;
-}
-
-/* ── Template: editorial ────────────────────────────────────────────── */
-html[data-template="editorial"] .slide {
-  --slide-pad-x: 11vw;
-  --slide-pad-y: 9vh;
-}
-
-html[data-template="editorial"] .slide__content {
-  max-width: 52rem;
-}
-
-html[data-template="editorial"] .slide h1 {
-  border-bottom: 2px solid var(--accent);
-  padding-bottom: 0.5em;
-  margin-bottom: 1.1em;
-}
-
-html[data-template="editorial"] .slide h2 {
-  color: var(--accent2);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.82em;
+:root[data-template="editorial"] .slide__content h1 {
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 0.3em;
   margin-bottom: 0.6em;
 }
-
-html[data-template="editorial"] .slide ul,
-html[data-template="editorial"] .slide ol {
-  line-height: 1.7;
+:root[data-template="editorial"] .slide__content h2 {
+  border-bottom: 1px solid var(--surface1);
+  padding-bottom: 0.2em;
+}
+:root[data-template="editorial"] blockquote {
+  border-left: 4px solid var(--accent);
+  font-style: italic;
+  background: var(--surface0);
+}
+:root[data-template="editorial"] table th {
+  border-bottom: 2px solid var(--accent);
+}
+:root[data-template="editorial"] hr {
+  border: none;
+  border-top: 2px solid var(--surface2);
+  margin: 2em 0;
 }
 
-/* ── Template: spotlight ────────────────────────────────────────────── */
-html[data-template="spotlight"] .slide {
-  --slide-pad-x: 12vw;
-  --slide-pad-y: 10vh;
-}
-
-html[data-template="spotlight"] .slide__content {
-  max-width: 40rem;
-  margin: auto;
+/* Spotlight */
+:root[data-template="spotlight"] .slide {
+  justify-content: center;
+  align-items: center;
   text-align: center;
+}
+:root[data-template="spotlight"] .slide__content {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-
-html[data-template="spotlight"] .slide__content h1,
-html[data-template="spotlight"] .slide__content h2 {
   text-align: center;
 }
-
-html[data-template="spotlight"] .slide__content ul,
-html[data-template="spotlight"] .slide__content ol {
-  text-align: left;
+:root[data-template="spotlight"] .slide__content h1 {
+  font-size: calc(var(--type-display) * 1.15);
+  text-align: center;
 }
-
-html[data-template="spotlight"] .slide__content p,
-html[data-template="spotlight"] .slide__content ul,
-html[data-template="spotlight"] .slide__content ol {
-  font-size: 1.15em;
+:root[data-template="spotlight"] .slide__content p {
+  max-width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+}
+:root[data-template="spotlight"] .slide__content ul,
+:root[data-template="spotlight"] .slide__content ol {
+  text-align: left;
+  display: inline-block;
+  margin-left: auto;
+  margin-right: auto;
+}
+:root[data-template="spotlight"] .slide__content blockquote {
+  text-align: center;
+  border-left: none;
+  border-top: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  padding: 1em 2em;
+  background: transparent;
+}
+:root[data-template="spotlight"] .slide__content pre {
+  text-align: left;
 }
 `;
 
-/**
- * Motion styles, scoped to the root `data-transition` attribute. The base
- * `.slide` rule in `generate.ts` already implements the default slide
- * transition (translate X in/out over 380ms); these override it per choice.
- * `prefers-reduced-motion` and print are handled there too.
- */
-export const TRANSITION_CSS = `
-/* ── Transition: fade ───────────────────────────────────────────────── */
-html[data-transition="fade"] .slide,
-html[data-transition="fade"] .slide.is-active,
-html[data-transition="fade"] .slide.exit-left,
-html[data-transition="fade"] .slide.exit-right,
-html[data-transition="fade"] .slide.enter-from-left,
-html[data-transition="fade"] .slide.enter-from-right {
+export const TRANSITION_CSS = `/* ── Transitions ────────────────────────────────────────────────────────── */
+
+/* Fade */
+:root[data-transition="fade"] .slide {
+  transition: opacity 0.3s ease;
+  transform: none !important;
+}
+:root[data-transition="fade"] .slide.exit-left,
+:root[data-transition="fade"] .slide.exit-right,
+:root[data-transition="fade"] .slide.enter-from-left,
+:root[data-transition="fade"] .slide.enter-from-right {
+  transform: none !important;
+  opacity: 0;
+}
+:root[data-transition="fade"] .slide.is-active {
+  opacity: 1;
   transform: none !important;
 }
 
-/* ── Transition: zoom ───────────────────────────────────────────────── */
-html[data-transition="zoom"] .slide {
+/* Zoom */
+:root[data-transition="zoom"] .slide {
   transform: scale(0.92);
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
-html[data-transition="zoom"] .slide.is-active {
+:root[data-transition="zoom"] .slide.is-active {
   transform: scale(1);
+  opacity: 1;
 }
-html[data-transition="zoom"] .slide.exit-left,
-html[data-transition="zoom"] .slide.exit-right {
-  transform: scale(1.06);
+:root[data-transition="zoom"] .slide.exit-left,
+:root[data-transition="zoom"] .slide.exit-right {
+  transform: scale(1.08);
+  opacity: 0;
 }
-html[data-transition="zoom"] .slide.enter-from-left,
-html[data-transition="zoom"] .slide.enter-from-right {
+:root[data-transition="zoom"] .slide.enter-from-left,
+:root[data-transition="zoom"] .slide.enter-from-right {
   transform: scale(0.92);
+  opacity: 0;
 }
 
-/* ── Transition: lift ───────────────────────────────────────────────── */
-html[data-transition="lift"] .slide {
-  transform: translateY(42px);
+/* Lift */
+:root[data-transition="lift"] .slide {
+  transform: translateY(48px);
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
-html[data-transition="lift"] .slide.is-active {
-  transform: none;
+:root[data-transition="lift"] .slide.is-active {
+  transform: translateY(0);
+  opacity: 1;
 }
-html[data-transition="lift"] .slide.exit-left,
-html[data-transition="lift"] .slide.exit-right {
-  transform: translateY(-42px);
+:root[data-transition="lift"] .slide.exit-left,
+:root[data-transition="lift"] .slide.exit-right {
+  transform: translateY(-48px);
+  opacity: 0;
 }
-html[data-transition="lift"] .slide.enter-from-left,
-html[data-transition="lift"] .slide.enter-from-right {
-  transform: translateY(42px);
+:root[data-transition="lift"] .slide.enter-from-left,
+:root[data-transition="lift"] .slide.enter-from-right {
+  transform: translateY(48px);
+  opacity: 0;
 }
 
-/* ── Transition: none ───────────────────────────────────────────────── */
-html[data-transition="none"] .slide,
-html[data-transition="none"] .slide.is-active,
-html[data-transition="none"] .slide.exit-left,
-html[data-transition="none"] .slide.exit-right,
-html[data-transition="none"] .slide.enter-from-left,
-html[data-transition="none"] .slide.enter-from-right {
-  transform: none !important;
+/* None */
+:root[data-transition="none"] .slide,
+:root[data-transition="none"] .slide.is-active,
+:root[data-transition="none"] .slide.exit-left,
+:root[data-transition="none"] .slide.exit-right,
+:root[data-transition="none"] .slide.enter-from-left,
+:root[data-transition="none"] .slide.enter-from-right {
   transition: none !important;
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-transition] .slide {
+    transition: opacity 0.2s linear !important;
+    transform: none !important;
+  }
+}
+
+@media print {
+  :root[data-transition] .slide {
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }
 `;
