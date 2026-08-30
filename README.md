@@ -26,7 +26,13 @@ npx deckrun
 
 ## Installation
 
-Install globally from npm:
+Install globally with a single command (checks for Node.js and npm, then installs from npm):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.sh | sh
+```
+
+Or install globally from npm directly:
 
 ```bash
 npm install -g deckrun
