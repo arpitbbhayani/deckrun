@@ -50,8 +50,8 @@ Or run it without installing:
 
 ```bash
 npx deckrun              # open the editor
-npx deckrun slides.md    # present a local file
-npx deckrun <url>        # present a public Markdown or HTML URL
+npx deckrun slides.md    # open a local file in the editor, present from there
+npx deckrun <url>        # open a public Markdown or HTML URL in the editor
 ```
 
 ## Usage
@@ -60,10 +60,12 @@ npx deckrun <url>        # present a public Markdown or HTML URL
 # Write a new deck in the built-in editor
 deckrun
 
-# Serve on the default port 7890 and open the browser
+# Open a file in the editor on the default port 7890. The editor saves back
+# to the file, edits made to the file on disk reload the editor, and
+# Cmd/Ctrl+Enter presents.
 deckrun slides.md
 
-# Present a self-contained HTML page instead of a Markdown deck
+# Open a self-contained HTML page instead of a Markdown deck
 deckrun page.html
 
 # Serve on a custom port
@@ -71,6 +73,9 @@ deckrun slides.md -p 3000
 
 # Start the server without opening a browser tab
 deckrun slides.md --no-open
+
+# Open the file without watching it for changes on disk
+deckrun slides.md --no-watch
 
 # Show a launch overlay that enters fullscreen on the first key or click
 deckrun slides.md --fullscreen
@@ -99,11 +104,22 @@ deckrun --list-transitions
 On start, the CLI prints the slide count and the local URL:
 
 ```text
-8 slides from slides.md
-present → http://127.0.0.1:7890  (Ctrl+C to stop)
+8 slides from slides.md · opening in the editor
+editor → http://127.0.0.1:7890  (Ctrl+C to stop)
+write on the left, live deck on the right. saves back to slides.md.
+edits to slides.md on disk reload the editor as well.
 ```
 
-With no file or URL, it starts the editor instead:
+A file passed on the CLI opens straight into the editor, backed by the file
+rather than the browser library: what you type autosaves back to the file,
+and edits made to the file on disk — from your own editor, a build step, an
+agent — reload the deckrun editor and its live preview. Pass `--no-watch`
+to turn off the disk watching. Presenting (`Cmd/Ctrl+Enter`) works exactly
+as it does for library decks. A document fetched from a URL opens the same
+way, but read-only toward its origin: nothing is written back, so download
+or duplicate it to keep changes.
+
+With no file or URL, it starts the editor on its browser library instead:
 
 ```text
 editor → http://127.0.0.1:7890  (Ctrl+C to stop)
@@ -117,9 +133,10 @@ The server binds to `127.0.0.1` only, so the deck is never exposed on the networ
 
 | Option                | Default | Description                                            |
 | --------------------- | ------- | ------------------------------------------------------ |
-| `[file]`              |         | Markdown file, HTML file, or public URL to present. Omit it to open the editor. |
+| `[file]`              |         | Markdown file, HTML file, or public URL to open in the editor. Omit it for a blank editor. |
 | `-p, --port <number>` | `7890`  | Port to serve the presentation on                      |
 | `--no-open`           | `false` | Start the HTTP server without opening the browser      |
+| `--no-watch`          | `false` | Do not watch the opened file for changes on disk       |
 | `--fullscreen`        | `false` | Prompt to enter fullscreen on the first key or click   |
 | `--theme <name>`      | `nord`     | Any of the fourteen themes, by id                   |
 | `--size <name>`       | `m`     | Type size: `s`, `m`, `l`, or `xl`                       |
@@ -230,7 +247,7 @@ Editing is a plain source pane on the left and a live preview on the right — n
 
 Presenting wraps the doc in an iframe and layers the tool belt that still makes sense with no slides — laser pointer, pen, blank canvas, blackout, fullscreen, and `?` for controls — on top of it. There is no HUD, slide counter, overview grid, or arrow-key navigation, since there is nothing to count or step through.
 
-A doc authored in the browser editor is expected to be self-contained: inline styles and scripts, and assets from a CDN or a `data:` URI rather than a relative local path, since editor-mode present and PDF serve it from an in-memory copy, not from a folder on disk. A file passed on the CLI does not have that restriction — `deckrun page.html` serves it from the file's own directory, exactly like a Markdown deck's images, so `<img src="diagram.png">` next to `page.html` resolves normally.
+A doc authored in the browser editor is expected to be self-contained: inline styles and scripts, and assets from a CDN or a `data:` URI rather than a relative local path, since editor-mode present and PDF serve it from an in-memory copy, not from a folder on disk. A file passed on the CLI does not have that restriction — `deckrun page.html` serves assets from the file's own directory, exactly like a Markdown deck's images, so `<img src="diagram.png">` next to `page.html` resolves normally.
 
 If a doc runs its own script that listens for keyboard input — an embedded framework, a game, a chart with its own shortcuts — it may end up racing deckrun's own listener for a key, since both are attached to the same page. Presenter shortcuts are best-effort in that case, not guaranteed to win.
 
@@ -865,16 +882,11 @@ From the editor, press `Cmd Shift S` or pick PDF from the `export` menu, and a f
 - Speaker notes are stripped at parse time, so they never reach the PDF.
 - Incremental fragments are fully revealed, so printed and exported slides never omit content.
 
-Loading any deck with `?print=1` on the URL opens the print dialog once fonts and highlighting have settled. That is the editor's fallback when there is no browser to drive, and it works on a file-backed deck too:
-
-```bash
-deckrun slides.md --no-open
-# then open http://127.0.0.1:7890/?print=1
-```
+Loading any presented deck with `&print=1` on its URL opens the print dialog once fonts and highlighting have settled. That is the editor's fallback when there is no browser to drive.
 
 ## Local asset server
 
-`deckrun` serves the generated HTML at `/` and everything else relative to the directory holding the Markdown file. In editor mode there is no Markdown file, so it serves the directory you launched in. Local images, diagrams, videos, and fonts load over `http://` instead of `file://`, which avoids CORS restrictions on local assets.
+`deckrun` serves the editor at `/` and everything else relative to the directory holding the opened file. Launched without a file, it serves the directory you launched in. Local images, diagrams, videos, and fonts load over `http://` instead of `file://`, which avoids CORS restrictions on local assets.
 
 - Served types include HTML, CSS, JS, JSON, PNG, JPEG, GIF, SVG, WebP, AVIF, ICO, MP4, WebM, WOFF, WOFF2, and TTF. Anything else is sent as `application/octet-stream`.
 - Requests that resolve outside the Markdown file's directory return `403`. Missing files return `404`.
@@ -998,16 +1010,16 @@ Two decks ship in `examples/`:
 - `examples/example-2.md` is a full technical talk on databases and agentic AI
 
 ```bash
-# Run the feature showcase deck
+# Open the feature showcase deck in the editor
 deckrun examples/example-1.md
 
-# Or open the editor and drag either file onto it to edit
+# Or open the blank editor and drag either file onto it to import
 deckrun
 
-# Run the technical talk in light theme on port 3000
+# Open the technical talk in light theme on port 3000
 deckrun examples/example-2.md -p 3000 --theme solarized --size l
 
-# Run fullscreen without opening a browser
+# Present fullscreen on the first key or click, without opening a browser
 deckrun examples/example-1.md --fullscreen --no-open
 ```
 

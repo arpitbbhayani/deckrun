@@ -31,14 +31,27 @@ import {
   type TransitionName,
 } from "./presentation-options.js";
 
+/** A document the editor is backed by: a local file or a fetched URL. */
+export interface EditorFileInfo {
+  /** Shown as the document name; also the download filename. */
+  name: string;
+  kind: "markdown" | "html";
+  /** Editor changes are written back (a local file, not a fetched URL). */
+  writable: boolean;
+  /** The server watches the file and pings /__events on external changes. */
+  watched: boolean;
+}
+
 function bootstrapJson(
   theme: ThemeName,
   size: SizeName,
   fonts: { head: string | null; body: string | null },
   template: TemplateName,
-  transition: TransitionName
+  transition: TransitionName,
+  file: EditorFileInfo | null
 ): string {
   const payload = {
+    file,
     theme,
     themes: themeSummaries(),
     size,
@@ -66,7 +79,8 @@ export function generateEditorHtml(
   sizeInput: SizeName = DEFAULT_SIZE,
   fontInput: { head?: string | null; body?: string | null } = {},
   templateInput: TemplateName = DEFAULT_TEMPLATE,
-  transitionInput: TransitionName = DEFAULT_TRANSITION
+  transitionInput: TransitionName = DEFAULT_TRANSITION,
+  file: EditorFileInfo | null = null
 ): string {
   const size = resolveSizeName(sizeInput);
   const template = resolveTemplateName(templateInput);
@@ -1444,7 +1458,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 <div id="toasts"></div>
 <input type="file" id="file-any" accept=".md,.markdown,text/markdown,text/plain,.html,.htm,text/html" hidden>
 
-<script type="application/json" id="bootstrap">${bootstrapJson(theme, size, fonts, template, transition)}</script>
+<script type="application/json" id="bootstrap">${bootstrapJson(theme, size, fonts, template, transition, file)}</script>
 <script>
 (function () {
   'use strict';
@@ -1452,6 +1466,12 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var D = JSON.parse(document.getElementById('bootstrap').textContent);
   var MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   var CMD = MAC ? 'Cmd' : 'Ctrl';
+
+  // The document deckrun was launched with (a file on disk or a fetched
+  // URL). When set, the editor is backed by it instead of the browser
+  // library: content comes from /__file, edits save back through it, and
+  // external changes on disk arrive over /__events.
+  var FILE = D.file || null;
 
   var K = {
     index:   'deckrun.decks.v1',
@@ -2088,6 +2108,24 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   var saveTimer = null;
 
   function saveNow() {
+    if (FILE) {
+      if (!FILE.writable) return;
+      fetch('/__file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        body: curValue()
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          elSave.className = '';
+          elSave.textContent = '';
+        })
+        .catch(function () {
+          elSave.className = 'err';
+          elSave.textContent = 'not saved: write to ' + FILE.name + ' failed';
+        });
+      return;
+    }
     var ok = state.deckId && lsSet(K.deck + state.deckId, curValue()) && touchCurrent();
     if (ok) {
       elSave.className = '';
@@ -3100,7 +3138,15 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   /** Load a deck or doc into the editor, saving whatever is open first. */
+  /** File mode owns the session: the browser library stays out of the way. */
+  function fileModeBlocks() {
+    if (!FILE) return false;
+    toast('Editing ' + FILE.name + ' — the browser library is available when deckrun runs without a file.', 'warn');
+    return true;
+  }
+
   function openDeck(id, announce) {
+    if (fileModeBlocks()) return;
     var meta = findDeck(id);
     if (!meta) { toast('That deck is gone.', 'warn'); return; }
     if (state.deckId && id !== state.deckId) saveNow();
@@ -3142,6 +3188,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   function newDeck() {
+    if (fileModeBlocks()) return;
     saveNow();
     var id = createDeck(uniqueName('untitled'), '', 'markdown');
     if (!id) { noRoom(); return; }
@@ -3150,6 +3197,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   function duplicateDeck() {
+    if (fileModeBlocks()) return;
     saveNow();
     var meta = findDeck(state.deckId);
     var id = createDeck(uniqueName((meta ? meta.name : 'deck') + ' copy'), curValue(), state.kind);
@@ -3159,6 +3207,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   function deleteDeck(id) {
+    if (fileModeBlocks()) return;
     var meta = findDeck(id);
     if (!meta) return;
     if (!confirm('Delete "' + meta.name + '"? This cannot be undone, and it is only in this browser.')) return;
@@ -3265,6 +3314,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   function openLibrary() {
+    if (fileModeBlocks()) return;
     var list = libraryList();
     libSel = 0;
     for (var i = 0; i < list.length; i++) if (list[i].id === state.deckId) libSel = i;
@@ -3540,6 +3590,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   /** An opened file lands as a new deck, so nothing in the library is lost. */
   function loadMarkdownFile(file, chosenTemplate, chosenTransition) {
+    if (fileModeBlocks()) return;
     var fr = new FileReader();
     fr.onload = function () {
       saveNow();
@@ -3563,6 +3614,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   /** An uploaded HTML doc lands as a new library entry, same as a .md file. */
   function loadHtmlFile(file) {
+    if (fileModeBlocks()) return;
     var fr = new FileReader();
     fr.onload = function () {
       saveNow();
@@ -3929,14 +3981,73 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   paintExportMenu();
   updateDeckCount();
 
-  // A deck to resume opens with zero clicks, exactly as before. Only a true
-  // first run — nothing in the library at all — shows the start screen.
-  var index = loadIndex();
-  if (index.length === 0) {
-    showStartScreen();
+  // ── File mode ──────────────────────────────────────────────────────────
+  /** Replaces the open document with what the server just read. */
+  function setFileContent(content) {
+    if (state.kind === 'html') {
+      srcHtml.value = content;
+      frameHtml.srcdoc = content;
+      renderHtmlCounts();
+      return;
+    }
+    // Keep the caret and scroll roughly in place across an external reload.
+    var s = src.selectionStart, e = src.selectionEnd, top = src.scrollTop;
+    src.value = content;
+    src.setSelectionRange(Math.min(s, content.length), Math.min(e, content.length));
+    src.scrollTop = top;
+    state.overflow = {};
+    paint();
+    syncScroll();
+    updateCaretUi();
+    refresh();
+  }
+
+  function loadFromDisk(announce) {
+    fetch('/__file')
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function (content) {
+        if (content === curValue()) return;
+        setFileContent(content);
+        if (announce) toast('Reloaded ' + FILE.name + ' from disk');
+      })
+      .catch(function (err) {
+        toast('Cannot read ' + FILE.name + ': ' + err.message, 'err');
+      });
+  }
+
+  function bootFromFile() {
+    setDocKind(FILE.kind);
+    $('docname').value = FILE.name;
+    // The name is the file's; renaming a disk file is the shell's job.
+    $('docname').readOnly = true;
+    $('btn-decks').style.display = 'none';
+    updateDocTitle();
+    loadFromDisk(false);
+    if (FILE.watched && typeof EventSource !== 'undefined') {
+      var es = new EventSource('/__events');
+      es.onmessage = function (e) {
+        if (e.data === 'reload') loadFromDisk(true);
+      };
+    }
+    (state.kind === 'html' ? srcHtml : src).focus();
+  }
+
+  // A launch with a file opens straight into it; otherwise a deck to resume
+  // opens with zero clicks, exactly as before, and only a true first run —
+  // nothing in the library at all — shows the start screen.
+  if (FILE) {
+    bootFromFile();
   } else {
-    var wanted = lsGet(K.current, null);
-    openDeck(findDeck(wanted) ? wanted : index[0].id);
+    var index = loadIndex();
+    if (index.length === 0) {
+      showStartScreen();
+    } else {
+      var wanted = lsGet(K.current, null);
+      openDeck(findDeck(wanted) ? wanted : index[0].id);
+    }
   }
 })();
 </script>

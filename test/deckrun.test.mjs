@@ -176,6 +176,24 @@ test("Generate Doc HTML produces valid standalone document wrapper", () => {
   assert.ok(docHtml.includes("My Remote Doc"));
 });
 
+test("Editor bootstraps with the opened file, and without one when absent", () => {
+  const plain = generateEditorHtml("nord", "m", {}, "classic", "slide");
+  assert.ok(plain.includes('"file":null'));
+
+  const backed = generateEditorHtml("nord", "m", {}, "classic", "slide", {
+    name: "slides.md",
+    kind: "markdown",
+    writable: true,
+    watched: true,
+  });
+  assert.ok(backed.includes('"name":"slides.md"'));
+  assert.ok(backed.includes('"writable":true'));
+  assert.ok(backed.includes('"watched":true'));
+  // The runtime that loads, saves, and live-reloads the file rides along.
+  assert.ok(backed.includes("/__file"));
+  assert.ok(backed.includes("EventSource('/__events')"));
+});
+
 test("Generate preview HTML produces valid preview structure", () => {
   const html = generatePreviewHtml("gruvbox", "m", {}, "minimal", "zoom");
   assert.ok(html.includes('data-theme="gruvbox"'));

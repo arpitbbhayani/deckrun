@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, watch } from "fs";
 import { readFile } from "fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { createRequire } from "module";
@@ -15,10 +15,8 @@ import {
   findSize,
   findTheme,
   fontListing,
-  fontName,
   resolveSizeName,
   resolveThemeName,
-  THEMES,
   themeListing,
   sizeListing,
   type SizeName,
@@ -174,12 +172,16 @@ function sendJson(res: ServerResponse, payload: unknown): void {
   res.end(JSON.stringify(payload));
 }
 
-interface DeckMode {
-  kind: "deck";
-  html: string;
-  remoteDoc?: string;
-  title?: string;
-  origin?: string;
+/** The document the editor session is backed by, when one was passed. */
+interface EditorFile {
+  name: string;
+  kind: "markdown" | "html";
+  /** On disk: read fresh per request, written back by the editor. */
+  path?: string;
+  /** Fetched from a URL once at startup: held in memory, read-only. */
+  content?: string;
+  /** The file is watched; disk changes ping /__events. */
+  watched: boolean;
 }
 
 interface EditorMode {
@@ -190,11 +192,12 @@ interface EditorMode {
   template: TemplateName;
   transition: TransitionName;
   fullscreen: boolean;
+  file?: EditorFile;
   /** Filled in once the port is known, so PDF rendering can reach the deck. */
   origin?: string;
 }
 
-type Mode = DeckMode | EditorMode;
+type Mode = EditorMode;
 
 /** Resolve bundled math/diagram assets installed with the npm package. */
 function vendorAsset(pathname: string): string | null {
@@ -213,6 +216,56 @@ function vendorAsset(pathname: string): string | null {
   }
 
   return null;
+}
+
+/** Editor tabs holding an open /__events stream, waiting on a reload ping. */
+const liveClients = new Set<ServerResponse>();
+
+function notifyLiveClients(): void {
+  for (const client of liveClients) {
+    try {
+      client.write("data: reload\n\n");
+    } catch {
+      liveClients.delete(client);
+    }
+  }
+}
+
+/**
+ * The content most recently written to the file by the editor itself, so
+ * the watcher can tell the editor's own save landing on disk apart from an
+ * external edit and not bounce it back as a reload.
+ */
+let lastEditorWrite: string | null = null;
+
+/**
+ * Watches the opened file and pings the editor when it changes on disk.
+ *
+ * The parent directory is watched rather than the file itself so editors
+ * that save by atomic rename (vim, VS Code, …) do not silently detach the
+ * watcher. Events are debounced because a single save fires several.
+ */
+function watchSourceFile(absPath: string): void {
+  const name = basename(absPath);
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    watch(dirname(absPath), (_event, filename) => {
+      if (filename && filename !== name) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        let content: string;
+        try {
+          content = readFileSync(absPath, "utf-8");
+        } catch {
+          return; // mid-save window of an atomic rename; the next event retries
+        }
+        if (content === lastEditorWrite) return; // our own save landing
+        notifyLiveClients();
+      }, 150);
+    });
+  } catch {
+    console.error(`${c.dim}deckrun: cannot watch '${name}' for changes; live reload is off.${c.reset}`);
+  }
 }
 
 /** Decks built from editor content, addressable so a new tab can load them. */
@@ -259,6 +312,59 @@ async function handleEditorRoute(
       res,
       generatePreviewHtml(mode.theme, mode.size, mode.fonts, mode.template, mode.transition)
     );
+    return true;
+  }
+
+  if (pathname === "/__file" && req.method === "GET" && mode.file) {
+    let content: string;
+    if (mode.file.path) {
+      try {
+        content = readFileSync(mode.file.path, "utf-8");
+      } catch {
+        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Cannot read the file.");
+        return true;
+      }
+    } else {
+      content = mode.file.content ?? "";
+    }
+    res.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(content);
+    return true;
+  }
+
+  if (pathname === "/__file" && req.method === "POST" && mode.file) {
+    if (!mode.file.path) {
+      res.writeHead(405, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "read-only", detail: "This document came from a URL; download it to keep changes." }));
+      return true;
+    }
+    const content = await readBody(req);
+    // Remember the write before it lands so the watcher can ignore its echo.
+    lastEditorWrite = content;
+    try {
+      writeFileSync(mode.file.path, content, "utf-8");
+    } catch {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "write failed" }));
+      return true;
+    }
+    sendJson(res, { ok: true });
+    return true;
+  }
+
+  if (pathname === "/__events" && req.method === "GET" && mode.file?.watched) {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-store",
+      Connection: "keep-alive",
+    });
+    res.write(": connected\n\n");
+    liveClients.add(res);
+    req.on("close", () => liveClients.delete(res));
     return true;
   }
 
@@ -566,25 +672,26 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
       const query = new URLSearchParams(rawQuery);
 
       if (pathname === "/" || pathname === "/index.html") {
-        const wantsDeck = mode.kind === "editor" && query.get("deck");
+        const wantsDeck = query.get("deck");
         if (wantsDeck) serveStashedDeck(wantsDeck, res);
         else sendHtml(
           res,
-          mode.kind === "deck"
-            ? mode.html
-            : generateEditorHtml(
-                mode.theme,
-                mode.size,
-                mode.fonts,
-                mode.template,
-                mode.transition
-              )
+          generateEditorHtml(
+            mode.theme,
+            mode.size,
+            mode.fonts,
+            mode.template,
+            mode.transition,
+            mode.file
+              ? {
+                  name: mode.file.name,
+                  kind: mode.file.kind,
+                  writable: !!mode.file.path,
+                  watched: mode.file.watched,
+                }
+              : null
+          )
         );
-        return;
-      }
-
-      if (mode.kind === "deck" && mode.remoteDoc && pathname === "/__remote-doc") {
-        sendHtml(res, mode.remoteDoc);
         return;
       }
 
@@ -604,39 +711,7 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
         return;
       }
 
-      if (mode.kind === "deck" && pathname === "/__pdf") {
-        const browser = await findBrowser();
-        if (!browser) {
-          res.writeHead(501, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({
-              error: "no browser",
-              detail:
-                "No Chrome, Chromium, Edge, or Brave found. Set DECKRUN_BROWSER to one to export PDFs directly.",
-            })
-          );
-          return;
-        }
-
-        try {
-          const pdf = await renderPdfSerial(`${mode.origin}/`, browser);
-          const filename = safeFilename(mode.title || "deck") + ".pdf";
-          res.writeHead(200, {
-            "Content-Type": "application/pdf",
-            "Content-Length": pdf.length,
-            "Content-Disposition": `attachment; filename="${filename}"`,
-            "Cache-Control": "no-store",
-          });
-          res.end(pdf);
-        } catch (err) {
-          const detail = err instanceof PdfError ? err.message : "rendering failed";
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "render failed", detail }));
-        }
-        return;
-      }
-
-      if (mode.kind === "editor" && (await handleEditorRoute(mode, pathname, req, res))) {
+      if (await handleEditorRoute(mode, pathname, req, res)) {
         return;
       }
 
@@ -675,12 +750,13 @@ const program = new Command();
 program
   .name("deckrun")
   .description(
-    "Present a Markdown file, HTML file, or public URL in the browser. Run without a file or URL to write in the built-in editor."
+    "Open a Markdown file, HTML file, or public URL in the built-in editor, and present from there. Run without an argument for a blank editor."
   )
   .version(packageVersion(), "-v, --version", "Print the version number")
-  .argument("[file]", "Markdown file, HTML file, or public URL to present. Omit it to open the editor.")
+  .argument("[file]", "Markdown file, HTML file, or public URL to open in the editor. Omit it for a blank editor.")
   .option("-p, --port <number>", "Port to serve on", "7890")
   .option("--no-open", "Do not automatically open the browser")
+  .option("--no-watch", "Do not watch the opened file for changes on disk")
   .option("--fullscreen", "Auto-enter fullscreen on first interaction")
   .option("--theme <name>", "Color theme, by id (see --list-themes)", DEFAULT_THEME)
   .option("--size <name>", "Type size: s, m, l, or xl", DEFAULT_SIZE)
@@ -699,6 +775,7 @@ program
       opts: {
         port: string;
         open: boolean;
+        watch: boolean;
         fullscreen?: boolean;
         theme: string;
         size: string;
@@ -850,17 +927,10 @@ program
           baseDir = process.cwd();
           const defaultName = target.pathname.split("/").filter(Boolean).pop() || target.hostname;
 
+          // A fetched page is a one-shot import: it opens in the editor,
+          // held in memory, read-only toward its origin.
+          let editorFile: EditorFile;
           if (isHtml) {
-            if (
-              opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont ||
-              opts.template !== DEFAULT_TEMPLATE || opts.transition !== DEFAULT_TRANSITION
-            ) {
-              console.error(
-                `${c.dim}deckrun: --size, font, template, and transition options only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
-              );
-            }
-
-            const title = docTitle(rawContent, defaultName);
             let docHtml = rawContent;
             if (!/<base\s/i.test(docHtml)) {
               if (/<head[^>]*>/i.test(docHtml)) {
@@ -869,94 +939,61 @@ program
                 docHtml = `<base href="${target.href}">\n` + docHtml;
               }
             }
-
-            mode = {
-              kind: "deck",
-              html: generateDocHtml("/__remote-doc", title, fullscreen, theme),
-              remoteDoc: docHtml,
+            editorFile = {
+              name: docTitle(rawContent, defaultName),
+              kind: "html",
+              content: docHtml,
+              watched: false,
             };
-
-            console.log(`${c.dim}presenting ${file} · ${THEMES[theme].label}${c.reset}`);
+            console.log(`${c.dim}opening ${file} in the editor as an HTML doc${c.reset}`);
           } else {
             const slides = parseSlides(rawContent);
-            if (slides.length === 0) {
-              console.error("deckrun: no slides found in the fetched content.");
-              process.exit(1);
-            }
-
-            const title = deckTitle(slides, defaultName);
-            mode = {
-              kind: "deck",
-              html: generateHtml(slides, title, fullscreen, theme, size, fonts, { template, transition }),
+            editorFile = {
+              name: defaultName,
+              kind: "markdown",
+              content: rawContent,
+              watched: false,
             };
-
-            const faces = [
-              fonts.head ? `head ${fontName(fonts.head)}` : "",
-              fonts.body ? `body ${fontName(fonts.body)}` : "",
-            ].filter(Boolean).join(" · ");
             console.log(
-              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${file} · ${THEMES[theme].label} · ${template} · ${transition} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
+              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${file} · opening in the editor${c.reset}`
             );
           }
+
+          mode = { kind: "editor", theme, size, fonts, template, transition, fullscreen, file: editorFile };
         } else {
           const absPath = resolve(process.cwd(), file);
           baseDir = dirname(absPath);
           const ext = extname(absPath).toLowerCase();
+          const kind = ext === ".html" || ext === ".htm" ? "html" : "markdown";
 
-          if (ext === ".html" || ext === ".htm") {
-            let rawHtml: string;
-            try {
-              rawHtml = readFileSync(absPath, "utf-8");
-            } catch {
-              console.error(`deckrun: cannot read file '${file}'`);
-              process.exit(1);
-            }
+          let raw: string;
+          try {
+            raw = readFileSync(absPath, "utf-8");
+          } catch {
+            console.error(`deckrun: cannot read file '${file}'`);
+            process.exit(1);
+          }
 
-            if (
-              opts.size !== DEFAULT_SIZE || opts.headFont || opts.bodyFont ||
-              opts.template !== DEFAULT_TEMPLATE || opts.transition !== DEFAULT_TRANSITION
-            ) {
-              console.error(
-                `${c.dim}deckrun: --size, font, template, and transition options only apply to Markdown decks; ignored for an HTML doc.${c.reset}`
-              );
-            }
+          mode = {
+            kind: "editor",
+            theme,
+            size,
+            fonts,
+            template,
+            transition,
+            fullscreen,
+            file: { name: basename(absPath), kind, path: absPath, watched: opts.watch },
+          };
 
-            const title = docTitle(rawHtml, basename(absPath, extname(absPath)));
-            mode = {
-              kind: "deck",
-              html: generateDocHtml(`/${basename(absPath)}`, title, fullscreen, theme),
-            };
+          if (opts.watch) watchSourceFile(absPath);
 
-            console.log(`${c.dim}presenting ${basename(absPath)} · ${THEMES[theme].label}${c.reset}`);
-          } else {
-            let markdown: string;
-            try {
-              markdown = readFileSync(absPath, "utf-8");
-            } catch {
-              console.error(`deckrun: cannot read file '${file}'`);
-              process.exit(1);
-            }
-
-            const slides = parseSlides(markdown);
-            if (slides.length === 0) {
-              console.error("deckrun: no slides found in the file.");
-              process.exit(1);
-            }
-
-            const title = deckTitle(slides, basename(absPath, extname(absPath)));
-            mode = {
-              kind: "deck",
-              title,
-              html: generateHtml(slides, title, fullscreen, theme, size, fonts, { template, transition }),
-            };
-
-            const faces = [
-              fonts.head ? `head ${fontName(fonts.head)}` : "",
-              fonts.body ? `body ${fontName(fonts.body)}` : "",
-            ].filter(Boolean).join(" · ");
+          if (kind === "markdown") {
+            const slides = parseSlides(raw);
             console.log(
-              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)} · ${THEMES[theme].label} · ${template} · ${transition} · type ${size}${faces ? " · " + faces : ""}${c.reset}`
+              `${c.dim}${slides.length} slide${slides.length !== 1 ? "s" : ""} from ${basename(absPath)} · opening in the editor${c.reset}`
             );
+          } else {
+            console.log(`${c.dim}opening ${basename(absPath)} in the editor as an HTML doc${c.reset}`);
           }
         }
       } else {
@@ -967,20 +1004,28 @@ program
       const port = await findFreePort(parseInt(opts.port, 10));
       mode.origin = `http://127.0.0.1:${port}`;
       const url = await serve(mode, baseDir, port);
-      const label = mode.kind === "editor" ? "editor" : "present";
 
       console.log(
-        `${c.bold}${c.magenta}${label}${c.reset} ${c.dim}→${c.reset} ${c.cyan}${c.bold}${url}${c.reset}  ${c.dim}(Ctrl+C to stop)${c.reset}`
+        `${c.bold}${c.magenta}editor${c.reset} ${c.dim}→${c.reset} ${c.cyan}${c.bold}${url}${c.reset}  ${c.dim}(Ctrl+C to stop)${c.reset}`
       );
 
-      if (mode.kind === "editor") {
+      if (mode.file?.path) {
+        console.log(
+          `${c.dim}write on the left, live deck on the right. saves back to ${mode.file.name}.${c.reset}`
+        );
+        if (mode.file.watched) {
+          console.log(
+            `${c.dim}edits to ${mode.file.name} on disk reload the editor as well.${c.reset}`
+          );
+        }
+      } else {
         console.log(
           `${c.dim}write on the left, live deck on the right. autosaves to your browser.${c.reset}`
         );
-        console.log(
-          `${c.dim}Cmd/Ctrl+K inserts anything · template/theme controls recompose live · Cmd/Ctrl+Enter presents${c.reset}`
-        );
       }
+      console.log(
+        `${c.dim}Cmd/Ctrl+K inserts anything · template/theme controls recompose live · Cmd/Ctrl+Enter presents${c.reset}`
+      );
 
       if (opts.open !== false) await open(url);
 
