@@ -9,17 +9,12 @@ import open from "open";
 import { parseSlides, type Slide } from "./parser.js";
 import { generateHtml, generateDocHtml, renderSlide } from "./generate.js";
 import {
-  DEFAULT_SIZE,
   DEFAULT_THEME,
   findFont,
-  findSize,
   findTheme,
   fontListing,
-  resolveSizeName,
   resolveThemeName,
   themeListing,
-  sizeListing,
-  type SizeName,
   type ThemeName,
 } from "./themes.js";
 import { generateEditorHtml } from "./editor.js";
@@ -187,7 +182,6 @@ interface EditorFile {
 interface EditorMode {
   kind: "editor";
   theme: ThemeName;
-  size: SizeName;
   fonts: { head: string | null; body: string | null };
   template: TemplateName;
   transition: TransitionName;
@@ -310,7 +304,7 @@ async function handleEditorRoute(
   if (pathname === "/__preview" && req.method === "GET") {
     sendHtml(
       res,
-      generatePreviewHtml(mode.theme, mode.size, mode.fonts, mode.template, mode.transition)
+      generatePreviewHtml(mode.theme, mode.fonts, mode.template, mode.transition)
     );
     return true;
   }
@@ -383,7 +377,6 @@ async function handleEditorRoute(
     const body = JSON.parse(await readBody(req)) as {
       markdown?: string;
       theme?: string;
-      size?: string;
       head?: string | null;
       body?: string | null;
       title?: string;
@@ -399,14 +392,13 @@ async function handleEditorRoute(
       return true;
     }
     const theme = resolveThemeName(body.theme);
-    const size = resolveSizeName(body.size);
     const template = resolveTemplateName(body.template);
     const transition = resolveTransitionName(body.transition);
     const title = deckTitle(slides, body.title?.trim() || "deckrun");
     // A deck built for printing must not open behind a fullscreen prompt.
     const forPrint = body.print === true;
     const path = stashDeck(
-      generateHtml(slides, title, forPrint ? false : mode.fullscreen, theme, size, {
+      generateHtml(slides, title, forPrint ? false : mode.fullscreen, theme, {
         head: body.head,
         body: body.body,
       }, { template, transition, standalone: body.standalone === true })
@@ -419,7 +411,6 @@ async function handleEditorRoute(
     const body = JSON.parse(await readBody(req)) as {
       markdown?: string;
       theme?: string;
-      size?: string;
       head?: string | null;
       body?: string | null;
       title?: string;
@@ -448,7 +439,6 @@ async function handleEditorRoute(
     }
 
     const theme = resolveThemeName(body.theme);
-    const size = resolveSizeName(body.size);
     const template = resolveTemplateName(body.template);
     const transition = resolveTransitionName(body.transition);
     const title = deckTitle(slides, body.title?.trim() || "deckrun");
@@ -458,7 +448,6 @@ async function handleEditorRoute(
         title,
         false,
         theme,
-        size,
         { head: body.head, body: body.body },
         { template, transition }
       )
@@ -678,7 +667,6 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
           res,
           generateEditorHtml(
             mode.theme,
-            mode.size,
             mode.fonts,
             mode.template,
             mode.transition,
@@ -759,13 +747,11 @@ program
   .option("--no-watch", "Do not watch the opened file for changes on disk")
   .option("--fullscreen", "Auto-enter fullscreen on first interaction")
   .option("--theme <name>", "Color theme, by id (see --list-themes)", DEFAULT_THEME)
-  .option("--size <name>", "Type size: s, m, l, or xl", DEFAULT_SIZE)
   .option("--head-font <name>", "Override the theme's heading face (see --list-fonts)")
   .option("--body-font <name>", "Override the theme's body face (see --list-fonts)")
   .option("--template <name>", "Composition template (see --list-templates)", DEFAULT_TEMPLATE)
   .option("--transition <name>", "Slide transition (see --list-transitions)", DEFAULT_TRANSITION)
   .option("--list-themes", "Print every theme and exit")
-  .option("--list-sizes", "Print every type size and exit")
   .option("--list-fonts", "Print every font face and exit")
   .option("--list-templates", "Print every composition template and exit")
   .option("--list-transitions", "Print every slide transition and exit")
@@ -778,13 +764,11 @@ program
         watch: boolean;
         fullscreen?: boolean;
         theme: string;
-        size: string;
         headFont?: string;
         bodyFont?: string;
         template: string;
         transition: string;
         listThemes?: boolean;
-        listSizes?: boolean;
         listFonts?: boolean;
         listTemplates?: boolean;
         listTransitions?: boolean;
@@ -792,10 +776,6 @@ program
     ) => {
       if (opts.listThemes) {
         for (const line of themeListing()) console.log(line);
-        process.exit(0);
-      }
-      if (opts.listSizes) {
-        for (const line of sizeListing()) console.log(line);
         process.exit(0);
       }
       if (opts.listFonts) {
@@ -815,13 +795,6 @@ program
       if (!named) {
         console.error(
           `deckrun: unknown theme '${opts.theme}'. Run --list-themes to see them all.`
-        );
-        process.exit(1);
-      }
-      const sized = findSize(opts.size);
-      if (!sized) {
-        console.error(
-          `deckrun: unknown size '${opts.size}'. Run --list-sizes to see them all.`
         );
         process.exit(1);
       }
@@ -858,7 +831,6 @@ program
       }
 
       const theme: ThemeName = named;
-      const size: SizeName = sized;
       const template: TemplateName = templated;
       const transition: TransitionName = transitioned;
       const fullscreen = !!opts.fullscreen;
@@ -959,7 +931,7 @@ program
             );
           }
 
-          mode = { kind: "editor", theme, size, fonts, template, transition, fullscreen, file: editorFile };
+          mode = { kind: "editor", theme, fonts, template, transition, fullscreen, file: editorFile };
         } else {
           const absPath = resolve(process.cwd(), file);
           baseDir = dirname(absPath);
@@ -977,7 +949,6 @@ program
           mode = {
             kind: "editor",
             theme,
-            size,
             fonts,
             template,
             transition,
@@ -998,7 +969,7 @@ program
         }
       } else {
         baseDir = process.cwd();
-        mode = { kind: "editor", theme, size, fonts, template, transition, fullscreen };
+        mode = { kind: "editor", theme, fonts, template, transition, fullscreen };
       }
 
       const port = await findFreePort(parseInt(opts.port, 10));

@@ -1,16 +1,12 @@
 import { RESET_CSS } from "./generate.js";
 import {
-  DEFAULT_SIZE,
   DEFAULT_THEME,
   decorOf,
   findFont,
   fontSummaries,
   googleFontsHref,
-  resolveSizeName,
-  sizeSummaries,
   themeSummaries,
   themeSwitchableCss,
-  type SizeName,
   type ThemeName,
 } from "./themes.js";
 import {
@@ -30,6 +26,7 @@ import {
   type TemplateName,
   type TransitionName,
 } from "./presentation-options.js";
+import { HIGHLIGHT_RUNTIME } from "./highlights.js";
 
 /** A document the editor is backed by: a local file or a fetched URL. */
 export interface EditorFileInfo {
@@ -44,7 +41,6 @@ export interface EditorFileInfo {
 
 function bootstrapJson(
   theme: ThemeName,
-  size: SizeName,
   fonts: { head: string | null; body: string | null },
   template: TemplateName,
   transition: TransitionName,
@@ -54,8 +50,6 @@ function bootstrapJson(
     file,
     theme,
     themes: themeSummaries(),
-    size,
-    sizes: sizeSummaries(),
     fonts,
     faces: fontSummaries(),
     template,
@@ -76,18 +70,16 @@ function bootstrapJson(
 /** The Markdown editor served when `deckrun` is launched without a file. */
 export function generateEditorHtml(
   theme: ThemeName = DEFAULT_THEME,
-  sizeInput: SizeName = DEFAULT_SIZE,
   fontInput: { head?: string | null; body?: string | null } = {},
   templateInput: TemplateName = DEFAULT_TEMPLATE,
   transitionInput: TransitionName = DEFAULT_TRANSITION,
   file: EditorFileInfo | null = null
 ): string {
-  const size = resolveSizeName(sizeInput);
   const template = resolveTemplateName(templateInput);
   const transition = resolveTransitionName(transitionInput);
   const fonts = { head: findFont(fontInput.head), body: findFont(fontInput.body) };
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-size="${size}" data-template="${template}" data-transition="${transition}">
+<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-template="${template}" data-transition="${transition}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -237,21 +229,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 .btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
 .btn kbd { font: inherit; font-size: 10px; color: var(--overlay0); }
-
-/* The type size, as a segment rather than a menu: four options is few enough
-   that hiding them behind a click would cost more than the width it saves. */
-#topbar-size { flex: 0 0 auto; height: 30px; align-items: stretch; }
-#topbar-size .sz-btn {
-  min-width: 0;
-  padding: 0 9px;
-  border: 0;
-  border-radius: 0;
-  display: inline-flex;
-  align-items: center;
-  color: var(--overlay1);
-}
-#topbar-size .sz-btn:hover { background: var(--accent-soft); color: var(--text); }
-#topbar-size .sz-btn.is-on { background: var(--surface0); color: var(--accent); }
 
 /* ── Font menu ────────────────────────────────────────────────────────── */
 .menu__pop--font { min-width: 452px; padding: 0; }
@@ -865,68 +842,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   padding: 0 3px;
 }
 
-/* ── Type size ────────────────────────────────────────────────────────── */
-#th-size {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 11px 18px;
-  border-bottom: 1px solid var(--surface0);
-  background: var(--surface-soft);
-}
-
-#th-size__label {
-  flex: 0 0 auto;
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--overlay0);
-}
-
-#th-size__blurb {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--overlay1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#th-size__seg { flex: 0 0 auto; display: flex; gap: 5px; }
-
-#th-size__keys { flex: 0 0 auto; display: flex; gap: 3px; }
-#th-size__keys kbd {
-  font: inherit;
-  font-size: 10px;
-  color: var(--overlay0);
-  border: 1px solid var(--surface1);
-  border-radius: 3px;
-  padding: 0 3px;
-}
-
-.sz-btn {
-  min-width: 40px;
-  padding: 5px 9px;
-  border: 1px solid var(--surface1);
-  border-radius: 7px;
-  font-size: 11px;
-  color: var(--subtext0);
-  text-align: center;
-  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
-}
-
-.sz-btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
-
-.sz-btn.is-on {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
-  font-weight: 600;
-}
-
-/* Each button is set at the ratio it stands for, so the row is its own key. */
-.sz-btn__glyph { font-family: var(--font-display); letter-spacing: -0.02em; }
 #th-head button {
   font-size: 11px;
   color: var(--subtext0);
@@ -1293,7 +1208,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         <div class="ff-foot">Code keeps the theme's monospace face.</div>
       </div>
     </span>
-    <span class="seg" id="topbar-size" title="Type size"></span>
     <button class="btn btn--primary" id="btn-present" title="Open the real deck in a new tab">present <kbd>Cmd Enter</kbd></button>
     </span>
   </header>
@@ -1400,12 +1314,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       <span class="th-head__sub">Arrow keys preview a theme live &nbsp;·&nbsp; enter keeps it &nbsp;·&nbsp; esc puts it back</span>
       <button data-close="themes">close</button>
     </div>
-    <div id="th-size">
-      <span id="th-size__label">type size</span>
-      <span id="th-size__seg"></span>
-      <span id="th-size__keys"><kbd>[</kbd><kbd>]</kbd></span>
-      <span id="th-size__blurb">Applies to every theme, and sticks right away.</span>
-    </div>
     <div id="th-list"></div>
   </div>
 </div>
@@ -1458,7 +1366,10 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 <div id="toasts"></div>
 <input type="file" id="file-any" accept=".md,.markdown,text/markdown,text/plain,.html,.htm,text/html" hidden>
 
-<script type="application/json" id="bootstrap">${bootstrapJson(theme, size, fonts, template, transition, file)}</script>
+<script type="application/json" id="bootstrap">${bootstrapJson(theme, fonts, template, transition, file)}</script>
+<script>
+${HIGHLIGHT_RUNTIME}
+</script>
 <script>
 (function () {
   'use strict';
@@ -1478,7 +1389,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     deck:    'deckrun.deck.',
     current: 'deckrun.current.v1',
     theme:   'deckrun.theme.v1',
-    size:    'deckrun.size.v1',
     head:    'deckrun.font.head.v1',
     body:    'deckrun.font.body.v1',
     template:'deckrun.template.v1',
@@ -1496,7 +1406,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   // already saved under the old prefix.
   var OLD_NS = {
     index: 'presentmd.decks.v1', deck: 'presentmd.deck.', current: 'presentmd.current.v1',
-    theme: 'presentmd.theme.v1', size: 'presentmd.size.v1', head: 'presentmd.font.head.v1',
+    theme: 'presentmd.theme.v1', head: 'presentmd.font.head.v1',
     body: 'presentmd.font.body.v1', split: 'presentmd.split.v1', mode: 'presentmd.mode.v1',
     nudge: 'presentmd.nudges.v1'
   };
@@ -1519,7 +1429,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         });
       }
     } catch (e) {}
-    ['current', 'theme', 'size', 'head', 'body', 'split', 'mode', 'nudge'].forEach(function (slot) {
+    ['current', 'theme', 'head', 'body', 'split', 'mode', 'nudge'].forEach(function (slot) {
       var v = lsGet(OLD_NS[slot], null);
       if (v !== null) { lsSet(K[slot], v); lsDel(OLD_NS[slot]); }
     });
@@ -1684,14 +1594,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     return THEME_BY_ID[id] ? id : (THEME_BY_ID[D.theme] ? D.theme : THEMES[0].id);
   }
 
-  var SIZES = D.sizes;
-  var SIZE_BY_ID = {};
-  SIZES.forEach(function (z) { SIZE_BY_ID[z.id] = z; });
-
-  function pickSize(id) {
-    return SIZE_BY_ID[id] ? id : (SIZE_BY_ID[D.size] ? D.size : 'm');
-  }
-
   var TEMPLATES = D.templates;
   var TEMPLATE_BY_ID = {};
   TEMPLATES.forEach(function (item) { TEMPLATE_BY_ID[item.id] = item; });
@@ -1738,7 +1640,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     index: 0,
     mode: lsGet(K.mode, 'single') === 'grid' ? 'grid' : 'single',
     theme: pickTheme(lsGet(K.theme, D.theme)),
-    size: pickSize(lsGet(K.size, D.size)),
     head: pickFont(lsGet(K.head, D.fonts.head)),
     body: pickFont(lsGet(K.body, D.fonts.body)),
     template: pickTemplate(lsGet(K.template, D.template)),
@@ -1826,6 +1727,40 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     following = false;
     followChipEl.classList.add('hidden');
   });
+
+  // ── Session highlights ─────────────────────────────────────────────────
+  // Selecting text in either preview paints a highlight and, optionally,
+  // hangs a comment off it. The store is the browser session's, shared with
+  // the tab present opens, so the marks are already there on the projector.
+  // Nothing is written to disk, and closing the browser clears the lot.
+  function highlightKey() {
+    if (FILE) return 'file:' + FILE.name;
+    return state.deckId ? 'deck:' + state.deckId : 'deck:unsaved';
+  }
+
+  var hlSlides = null, hlDoc = null;
+  if (window.deckrunHighlights) {
+    var onHighlightWarn = function (message) { toast(message, 'warn'); };
+    hlSlides = window.deckrunHighlights.mount({
+      frame: frame,
+      docKey: highlightKey(),
+      scopes: 'slides',
+      onWarn: onHighlightWarn
+    });
+    hlDoc = window.deckrunHighlights.mount({
+      frame: frameHtml,
+      docKey: highlightKey(),
+      scopes: 'doc',
+      onWarn: onHighlightWarn
+    });
+  }
+
+  /** Points both previews at whichever document is now open. */
+  function syncHighlightDoc() {
+    var key = highlightKey();
+    if (hlSlides) hlSlides.setDocKey(key);
+    if (hlDoc) hlDoc.setDocKey(key);
+  }
 
   // ── Toasts ─────────────────────────────────────────────────────────────
   function toast(message, kind, actionLabel, action) {
@@ -2592,7 +2527,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       : {
           markdown: src.value,
           theme: state.theme,
-          size: state.size,
           head: state.head,
           body: state.body,
           template: state.template,
@@ -2662,7 +2596,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       body: JSON.stringify({
         markdown: src.value,
         theme: state.theme,
-        size: state.size,
         head: state.head,
         body: state.body,
         template: state.template,
@@ -2701,7 +2634,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     builder(false)
       .then(function (data) {
         var url = location.origin + data.path +
-          (data.path.indexOf('?') >= 0 ? '&' : '?') + 'ps=' + followSid;
+          (data.path.indexOf('?') >= 0 ? '&' : '?') + 'ps=' + followSid +
+          '&hl=' + encodeURIComponent(highlightKey());
         if (tab) tab.location.replace(url);
         else toast('Allow pop-ups to present in a new tab.', 'warn', 'present here', function () { location.href = url; });
       })
@@ -2724,18 +2658,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     document.documentElement.dataset.decor = THEME_BY_ID[id].decor;
     if (remember !== false) lsSet(K.theme, id);
     pushLook();
-  }
-
-  /**
-   * Type size is orthogonal to the theme: every theme can be set at any of the
-   * four, so the two choices compose instead of multiplying into presets.
-   */
-  function setSize(next, remember) {
-    var id = pickSize(next);
-    state.size = id;
-    if (remember !== false) lsSet(K.size, id);
-    pushLook();
-    paintSizeSeg();
   }
 
   function setTemplate(next, remember) {
@@ -2786,7 +2708,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       if (root) {
         root.dataset.theme = state.theme;
         root.dataset.decor = decorOf(state.theme);
-        root.dataset.size = state.size;
         root.dataset.template = state.template;
         root.dataset.transition = state.transition;
         if (state.head) root.dataset.head = state.head; else delete root.dataset.head;
@@ -2798,7 +2719,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
         frameHtml.contentWindow.postMessage({
           type: 'theme',
           theme: state.theme,
-          size: state.size,
           head: state.head,
           body: state.body,
           template: state.template,
@@ -2813,7 +2733,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     post({
       type: 'theme',
       theme: state.theme,
-      size: state.size,
       head: state.head,
       body: state.body,
       template: state.template,
@@ -2925,51 +2844,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   // ── Theme picker ───────────────────────────────────────────────────────
-  function buildSizeSeg(hostId, showBlurb) {
-    var host = $(hostId);
-    host.innerHTML = '';
-    SIZES.forEach(function (z) {
-      var b = document.createElement('button');
-      b.className = 'sz-btn';
-      b.dataset.size = z.id;
-      b.title = z.label + ' — ' + z.blurb;
-
-      var glyph = document.createElement('span');
-      glyph.className = 'sz-btn__glyph';
-      glyph.textContent = z.id.toUpperCase();
-      // Set at the ratio it stands for, so the row doubles as its own legend.
-      glyph.style.fontSize = (10.5 * z.display).toFixed(2) + 'px';
-      b.appendChild(glyph);
-
-      b.addEventListener('click', function () { setSize(z.id, true); });
-      if (showBlurb) {
-        b.addEventListener('mouseenter', function () { showSizeBlurb(z.id); });
-        b.addEventListener('mouseleave', function () { showSizeBlurb(state.size); });
-      }
-      host.appendChild(b);
-    });
-  }
-
-  function showSizeBlurb(id) {
-    var z = SIZE_BY_ID[id];
-    $('th-size__blurb').textContent = z ? z.blurb : '';
-  }
-
-  function paintSizeSeg() {
-    Array.prototype.forEach.call(document.querySelectorAll('.sz-btn'), function (b) {
-      b.classList.toggle('is-on', b.dataset.size === state.size);
-    });
-    showSizeBlurb(state.size);
-  }
-
-  /** Steps the size by one, clamped rather than wrapped. */
-  function nudgeSize(delta) {
-    var at = 0;
-    for (var i = 0; i < SIZES.length; i++) if (SIZES[i].id === state.size) at = i;
-    var next = Math.max(0, Math.min(SIZES.length - 1, at + delta));
-    if (SIZES[next].id !== state.size) setSize(SIZES[next].id, true);
-  }
-
   var themeCards = [];
   var themeSel = 0;
   var themeCommitted = null;
@@ -3089,8 +2963,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   function openThemes() {
     closeOverlays(true);
     themeCommitted = state.theme;
-    buildSizeSeg('th-size__seg', true);
-    paintSizeSeg();
     buildThemePicker();
     var at = 0;
     themeCards.forEach(function (c, n) { if (c.dataset.theme === state.theme) at = n; });
@@ -3152,6 +3024,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     if (state.deckId && id !== state.deckId) saveNow();
     state.deckId = id;
     lsSet(K.current, id);
+    syncHighlightDoc();
     setDocKind(meta.kind || 'markdown');
     setTemplate(meta.template || state.template, true);
     setTransition(meta.transition || state.transition, true);
@@ -3215,6 +3088,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     var list = loadIndex().filter(function (d) { return d.id !== id; });
     saveIndex(list);
     lsDel(K.deck + id);
+    if (window.deckrunHighlights) window.deckrunHighlights.forget('deck:' + id);
 
     if (id === state.deckId) {
       if (list.length) {
@@ -3759,8 +3633,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     else if (e.key === 'ArrowUp') step = -cols;
     else if (e.key === 'Enter') { e.preventDefault(); commitTheme(); return; }
     else if (e.key === 'Escape') { e.preventDefault(); closeOverlays(); return; }
-    else if (e.key === '[' || e.key === '-') { e.preventDefault(); nudgeSize(-1); return; }
-    else if (e.key === ']' || e.key === '+' || e.key === '=') { e.preventDefault(); nudgeSize(1); return; }
     else return;
     e.preventDefault();
     var next = (themeSel + step + themeCards.length) % themeCards.length;
@@ -3962,11 +3834,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   document.documentElement.dataset.decor = THEME_BY_ID[state.theme].decor;
   document.documentElement.dataset.template = state.template;
   document.documentElement.dataset.transition = state.transition;
-  buildSizeSeg('topbar-size', false);
   buildFontMenu();
   buildTemplateMenu();
   buildStartOptions();
-  paintSizeSeg();
   paintThemeButton();
   $('seg-single').classList.toggle('is-on', state.mode === 'single');
   $('seg-grid').classList.toggle('is-on', state.mode === 'grid');
@@ -4019,6 +3889,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 
   function bootFromFile() {
+    syncHighlightDoc();
     setDocKind(FILE.kind);
     $('docname').value = FILE.name;
     // The name is the file's; renaming a disk file is the shell's job.

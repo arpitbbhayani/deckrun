@@ -18,7 +18,9 @@ import { lintMarkdown } from "../dist/lint.js";
 import { generateHtml, generateDocHtml } from "../dist/generate.js";
 import { generatePreviewHtml } from "../dist/preview.js";
 import { generateEditorHtml } from "../dist/editor.js";
-import { findFont, resolveThemeName, resolveSizeName } from "../dist/themes.js";
+import { findFont, resolveThemeName } from "../dist/themes.js";
+import { HIGHLIGHT_RUNTIME, HIGHLIGHT_WARNING } from "../dist/highlights.js";
+import vm from "node:vm";
 
 test("Parser handles slides, notes, images, math, and reveals", () => {
   const md = `# Slide 1
@@ -157,7 +159,6 @@ test("Generate HTML produces valid complete document with templates and transiti
     "My Test Deck",
     false,
     "nord",
-    "l",
     { head: null, body: null },
     { template: "editorial", transition: "fade" }
   );
@@ -165,7 +166,6 @@ test("Generate HTML produces valid complete document with templates and transiti
   assert.ok(html.includes('data-theme="nord"'));
   assert.ok(html.includes('data-template="editorial"'));
   assert.ok(html.includes('data-transition="fade"'));
-  assert.ok(html.includes('data-size="l"'));
   assert.ok(html.includes("Test note"));
 });
 
@@ -177,10 +177,10 @@ test("Generate Doc HTML produces valid standalone document wrapper", () => {
 });
 
 test("Editor bootstraps with the opened file, and without one when absent", () => {
-  const plain = generateEditorHtml("nord", "m", {}, "classic", "slide");
+  const plain = generateEditorHtml("nord", {}, "classic", "slide");
   assert.ok(plain.includes('"file":null'));
 
-  const backed = generateEditorHtml("nord", "m", {}, "classic", "slide", {
+  const backed = generateEditorHtml("nord", {}, "classic", "slide", {
     name: "slides.md",
     kind: "markdown",
     writable: true,
@@ -195,7 +195,7 @@ test("Editor bootstraps with the opened file, and without one when absent", () =
 });
 
 test("Generate preview HTML produces valid preview structure", () => {
-  const html = generatePreviewHtml("gruvbox", "m", {}, "minimal", "zoom");
+  const html = generatePreviewHtml("gruvbox", {}, "minimal", "zoom");
   assert.ok(html.includes('data-theme="gruvbox"'));
   assert.ok(html.includes('data-template="minimal"'));
   assert.ok(html.includes('data-transition="zoom"'));
@@ -203,21 +203,17 @@ test("Generate preview HTML produces valid preview structure", () => {
 });
 
 test("Generate editor HTML produces valid editor interface", () => {
-  const html = generateEditorHtml("dracula", "s", { head: "inter", body: "lora" }, "spotlight", "lift");
+  const html = generateEditorHtml("dracula", { head: "inter", body: "lora" }, "spotlight", "lift");
   assert.ok(html.includes('data-theme="dracula"'));
-  assert.ok(html.includes('data-size="s"'));
   assert.ok(html.includes('data-template="spotlight"'));
   assert.ok(html.includes('data-transition="lift"'));
   assert.ok(html.includes("deckrun · editor"));
 });
 
-test("Theme, font, and size resolvers function properly", () => {
+test("Theme and font resolvers function properly", () => {
   assert.equal(resolveThemeName("nord"), "nord");
   assert.equal(resolveThemeName("Nord"), "nord");
   assert.equal(resolveThemeName("invalid-theme"), "nord");
-
-  assert.equal(resolveSizeName("xl"), "xl");
-  assert.equal(resolveSizeName("invalid-size"), "m");
 
   assert.equal(findFont("inter"), "inter");
   assert.equal(findFont("Inter"), "inter");
@@ -239,3 +235,94 @@ test("Theme-dependent text selection highlight is configured", async () => {
   assert.ok(html.includes("var(--selection-bg"));
 });
 
+
+test("Session highlights ship on every surface that renders a document", () => {
+  const slides = parseSlides("# Slide 1\nHighlight me");
+
+  // The deck reads hl=... so the tab present opens knows whose marks these are.
+  const deck = generateHtml(slides, "Deck");
+  assert.ok(deck.includes("window.deckrunHighlights"));
+  assert.ok(deck.includes("scopes: 'slides'"));
+  assert.ok(deck.includes("get('hl')"));
+
+  // An HTML doc is one scope, highlighted through the presenter wrapper.
+  const doc = generateDocHtml("/?deck=1", "Doc");
+  assert.ok(doc.includes("window.deckrunHighlights"));
+  assert.ok(doc.includes("scopes: 'doc'"));
+
+  // The editor drives both of its previews and hands the key to present.
+  const editor = generateEditorHtml();
+  assert.ok(editor.includes("frame: frame"));
+  assert.ok(editor.includes("frame: frameHtml"));
+  assert.ok(editor.includes("'&hl=' + encodeURIComponent(highlightKey())"));
+
+  // Exports and PDFs are built from the same markdown with no hl= on them,
+  // so a printed deck never carries somebody's session marks.
+  assert.ok(!deck.includes("&hl="));
+});
+
+test("Highlight runtime is valid, self-installing JavaScript", () => {
+  assert.doesNotThrow(() => new vm.Script(HIGHLIGHT_RUNTIME));
+  assert.ok(HIGHLIGHT_RUNTIME.includes("window.deckrunHighlights = {"));
+  // Session storage only: nothing reaches localStorage or the server.
+  assert.ok(HIGHLIGHT_RUNTIME.includes("sessionStorage"));
+  assert.ok(!HIGHLIGHT_RUNTIME.includes("localStorage"));
+  assert.ok(!HIGHLIGHT_RUNTIME.includes("fetch("));
+  // Tabs of one session stay in step, which is how a highlight made in the
+  // editor is already on the slide in the deck tab.
+  assert.ok(HIGHLIGHT_RUNTIME.includes("BroadcastChannel"));
+});
+
+test("First use warns that highlights are session-only", () => {
+  assert.match(HIGHLIGHT_WARNING, /session/i);
+  assert.match(HIGHLIGHT_WARNING, /Nothing is written to disk/);
+  const deck = generateHtml(parseSlides("# One"), "Deck");
+  assert.ok(deck.includes(HIGHLIGHT_WARNING));
+  assert.ok(generateEditorHtml().includes(HIGHLIGHT_WARNING));
+});
+
+test("Highlight colors are fixed, not borrowed from the theme", async () => {
+  const { themeRootCss, THEME_IDS } = await import("../dist/themes.js");
+
+  // A tint of the accent reads as part of the design; a highlight has to be
+  // findable at a glance on every palette, so it carries its own colors.
+  for (const id of THEME_IDS) {
+    assert.ok(!themeRootCss(id).includes("--mark"), id + " defines no highlight color");
+  }
+  assert.ok(!HIGHLIGHT_RUNTIME.includes("var(--mark"),
+    "the mark styles do not reach for a theme variable");
+
+  // Pen yellow, its own dark ink, and a second pen for commented highlights.
+  assert.ok(HIGHLIGHT_RUNTIME.includes("background: #ffe75e"));
+  assert.ok(HIGHLIGHT_RUNTIME.includes("mark.dr-hl * { color: #15161a !important; }"));
+  assert.ok(HIGHLIGHT_RUNTIME.includes("background: #7ae6ff"));
+
+  // The popups are chrome, so those still match whatever theme is on.
+  assert.ok(HIGHLIGHT_RUNTIME.includes("var(--mantle,"));
+});
+
+test("The type size option is gone from every surface", async () => {
+  const themes = await import("../dist/themes.js");
+  for (const gone of ["SIZE_IDS", "DEFAULT_SIZE", "findSize", "resolveSizeName",
+                      "sizeSummaries", "sizeListing", "sizeRootCss", "sizeSwitchableCss"]) {
+    assert.equal(themes[gone], undefined, gone + " is no longer exported");
+  }
+
+  // Nothing keys off a size any more: no attribute, no switchable scale, and
+  // no multiplier left over from one.
+  const deck = generateHtml(parseSlides("# One\nBody"), "Deck");
+  const preview = generatePreviewHtml();
+  const editor = generateEditorHtml();
+  for (const [name, html] of Object.entries({ deck, preview, editor })) {
+    assert.ok(!html.includes("data-size"), name + " sets no data-size");
+    assert.ok(!html.includes("--type-display"), name + " has no type multiplier");
+    assert.ok(!html.includes("--type-body"), name + " has no type multiplier");
+  }
+  assert.ok(!editor.includes("sz-btn"), "the editor has no size control");
+  assert.ok(!editor.includes("th-size"), "the theme picker has no size row");
+  assert.ok(!editor.includes('"sizes"'), "the editor is not handed a size list");
+
+  // The one scale the deck now renders at still reaches the templates.
+  assert.ok(deck.includes("--slide-pad-y: 4.4rem"));
+  assert.ok(deck.includes("--slide-pad-x: 6rem"));
+});

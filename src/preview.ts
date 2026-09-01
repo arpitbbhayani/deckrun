@@ -3,18 +3,13 @@ import {
   findFont,
   FONT_IDS,
   fontOverrideCss,
-  SIZE_IDS,
-  DEFAULT_SIZE,
   DEFAULT_THEME,
   decorMapJson,
   decorOf,
   googleFontsHref,
   hljsHref,
   hljsMapJson,
-  resolveSizeName,
-  sizeSwitchableCss,
   themeSwitchableCss,
-  type SizeName,
   type ThemeName,
 } from "./themes.js";
 import {
@@ -45,12 +40,10 @@ export const PREVIEW_HEIGHT = 900;
  */
 export function generatePreviewHtml(
   initialTheme: ThemeName = DEFAULT_THEME,
-  initialSize: SizeName = DEFAULT_SIZE,
   fonts: { head?: string | null; body?: string | null } = {},
   initialTemplate: TemplateName = DEFAULT_TEMPLATE,
   initialTransition: TransitionName = DEFAULT_TRANSITION
 ): string {
-  const size = resolveSizeName(initialSize);
   const template = resolveTemplateName(initialTemplate);
   const transition = resolveTransitionName(initialTransition);
   const head = findFont(fonts.head);
@@ -58,7 +51,7 @@ export function generatePreviewHtml(
   const fontAttrs =
     (head ? ` data-head="${head}"` : "") + (body ? ` data-body="${body}"` : "");
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${initialTheme}" data-decor="${decorOf(initialTheme)}" data-size="${size}" data-template="${template}" data-transition="${transition}"${fontAttrs}>
+<html lang="en" data-theme="${initialTheme}" data-decor="${decorOf(initialTheme)}" data-template="${template}" data-transition="${transition}"${fontAttrs}>
 <head>
   <meta charset="UTF-8">
   <title>preview · deckrun</title>
@@ -72,8 +65,6 @@ export function generatePreviewHtml(
 ${RESET_CSS}
 
 ${themeSwitchableCss()}
-
-${sizeSwitchableCss()}
 
 ${fontOverrideCss()}
 
@@ -183,7 +174,6 @@ ${RICH_CONTENT_RUNTIME}
   var VW = ${PREVIEW_WIDTH};
   var HLJS = ${hljsMapJson()};
   var DECOR = ${decorMapJson()};
-  var SIZES = ${JSON.stringify(SIZE_IDS)};
   var FONTS = ${JSON.stringify(FONT_IDS)};
 
   var stage = document.getElementById('presentation');
@@ -398,17 +388,14 @@ ${RICH_CONTENT_RUNTIME}
         var link = document.getElementById('hljs-theme');
         if (link) link.href = HLJS[m.theme];
       }
-      if (SIZES.indexOf(m.size) !== -1) {
-        document.documentElement.dataset.size = m.size;
-      }
       // An empty string clears the override and hands the slot back to the
       // theme, which delete does and an assignment of '' would not.
       applyFont('head', m.head);
       applyFont('body', m.body);
       if (m.template) document.documentElement.dataset.template = m.template;
       if (m.transition) document.documentElement.dataset.transition = m.transition;
-      // Type size and face both change how tall a slide's content runs, so the
-      // editor's overflow warning has to be re-measured against them.
+      // A different face changes how tall a slide's content runs, so the
+      // editor's overflow warning has to be re-measured against it.
       render();
     } else if (m.type === 'index') {
       index = m.index;

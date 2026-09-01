@@ -4,12 +4,13 @@ Write slides in Markdown or bring a self-contained HTML document, run a local se
 
 - **Two formats** - Markdown decks with slide-by-slide presentation, or self-contained HTML documents with continuous scrolling
 - **Live editor** - edit alongside a live preview, with autosave and a library of all your decks and docs
-- **14 themes** - unique palettes, typography, animated backdrops, four type sizes, and customizable heading and body fonts
+- **14 themes** - unique palettes, typography, animated backdrops, and customizable heading and body fonts
 - **Templates and motion** - four composition templates and five transitions, switchable without touching the Markdown
 - **Technical content** - KaTeX equations and Mermaid diagrams in preview, presentation, HTML, and PDF
 - **Incremental reveals** - step through bullets, prose, equations, code, or diagrams without duplicating slides
 - **Deck linting** - catch empty slides, broken fences/math, dense content, image issues, and invalid reveal markers locally or in CI
 - **Presenter tools** - laser pointer, drawing pen, blank canvas, blackout mode, and `?` for shortcuts
+- **Highlights and comments** - marker-pen text in the preview or on the projector and hang a note off it, kept in the browser session and gone when the tab closes
 - **Notes while presenting** - present from the editor and its preview and notes panel follow the deck tab, so the editor is your notes screen
 - **Export** - Markdown, HTML, headless-rendered PDF, or a standalone presenter-ready HTML page
 - **Local-first** - binds only to `127.0.0.1`; nothing is uploaded, and your work stays in browser local storage until export
@@ -80,9 +81,8 @@ deckrun slides.md --no-watch
 # Show a launch overlay that enters fullscreen on the first key or click
 deckrun slides.md --fullscreen
 
-# Pick one of the fourteen themes, at one of four type sizes
+# Pick one of the fourteen themes
 deckrun slides.md --theme paper
-deckrun slides.md --theme paper --size xl
 
 # Or set the two faces yourself
 deckrun slides.md --theme tokyo --head-font playfair --body-font lora
@@ -95,7 +95,6 @@ deckrun lint slides.md
 deckrun lint talks/*.md --format json
 
 deckrun --list-themes
-deckrun --list-sizes
 deckrun --list-fonts
 deckrun --list-templates
 deckrun --list-transitions
@@ -139,22 +138,20 @@ The server binds to `127.0.0.1` only, so the deck is never exposed on the networ
 | `--no-watch`          | `false` | Do not watch the opened file for changes on disk       |
 | `--fullscreen`        | `false` | Prompt to enter fullscreen on the first key or click   |
 | `--theme <name>`      | `nord`     | Any of the fourteen themes, by id                   |
-| `--size <name>`       | `m`     | Type size: `s`, `m`, `l`, or `xl`                       |
 | `--head-font <name>`  |         | Override the theme's heading and title face             |
 | `--body-font <name>`  |         | Override the theme's body face                          |
 | `--template <name>`   | `classic` | Composition: `classic`, `minimal`, `editorial`, or `spotlight` |
 | `--transition <name>` | `slide` | Motion: `slide`, `fade`, `zoom`, `lift`, or `none`       |
 | `--list-themes`       |         | Print every theme with its mood and blurb, then exit    |
-| `--list-sizes`        |         | Print every type size with what it is for, then exit    |
 | `--list-fonts`        |         | Print every face and its kind, then exit                |
 | `--list-templates`    |         | Print every composition template, then exit             |
 | `--list-transitions`  |         | Print every slide transition, then exit                 |
 | `-v, --version`       |         | Print the version number                               |
 | `-h, --help`          |         | Print help for the command                             |
 
-An unknown `--theme`, `--size`, or font is an error rather than a silent fallback, so a typo does not quietly hand you the default. `dark` and `light` still name the two original palettes. In the editor, `--theme` and `--size` set the starting look and `Cmd Shift L` opens the picker to change either one live.
+An unknown `--theme` or font is an error rather than a silent fallback, so a typo does not quietly hand you the default. `dark` and `light` still name the two original palettes. In the editor, `--theme` sets the starting look and `Cmd Shift L` opens the picker to change it live.
 
-`--size`, `--head-font`, and `--body-font` apply to Markdown decks only. An HTML doc brings its own typography; passing any of them alongside an `.html`/`.htm` file prints a notice and is otherwise ignored.
+`--head-font` and `--body-font` apply to Markdown decks only. An HTML doc brings its own typography; passing any of them alongside an `.html`/`.htm` file prints a notice and is otherwise ignored.
 
 ### `deckrun lint`
 
@@ -181,7 +178,7 @@ Run `deckrun` with no file and it serves an editor instead of a deck. A deck alr
 
 ```bash
 deckrun
-deckrun --theme paper --size l   # start the editor in a given look
+deckrun --theme paper            # start the editor in a given look
 deckrun --head-font syne         # and a face of your own
 deckrun -p 3000            # editor on another port
 ```
@@ -191,9 +188,8 @@ The preview is not an approximation. Every keystroke is parsed by the same parse
 ### The two bars
 
 The top bar is for decisions: the deck name, the library, and then everything
-that changes what the deck looks like — `template`, `theme`, `font`, and the `S M L XL`
-type size — with `guide`, `insert`, `new`, `export`, and `present` beside
-them.
+that changes what the deck looks like — `template`, `theme`, and `font` — with
+`guide`, `insert`, `new`, `export`, and `present` beside them.
 
 The bottom bar is for counts and status: caret position, word count, slide
 count, a tip line, and any message the editor has for you. Nothing that only
@@ -319,9 +315,11 @@ An HTML doc's PDF is not paginated to 16:9 slides — it prints the doc's own `@
 | `Cmd I`             | Italic                     |
 | `Cmd E`             | Inline code                |
 | `Cmd G`             | Toggle grid preview        |
-| `Cmd Shift L`       | Theme and type size picker  |
+| `Cmd Shift L`       | Theme picker               |
 | `Alt Left`, `Alt Right`, `Alt Up`, `Alt Down`| Previous and next slide |
 | `Esc`               | Close a menu, the palette, or the guide |
+
+Selecting text in the preview offers to highlight it; see [Highlighting and comments](#highlighting-and-comments).
 
 `Cmd K` (palette), `Cmd /` (guide), `Cmd D/B/I/E` (snippets), and `Cmd G` (grid) are Markdown-only — an HTML doc's source is plain text with no snippet catalog or grid view. Library, present, and both exports stay wired the same for either kind.
 
@@ -605,8 +603,8 @@ In a file-backed deck the theme is baked into the page at launch, so switching
 means restarting with a different flag. In the editor it is live: `Cmd Shift L`
 opens a picker where the arrow keys preview each theme on the real deck as you
 move, `Enter` keeps the one you land on, and `Esc` puts back the one you had.
-The same picker carries the type size. Both choices are remembered per browser
-and travel into the deck you present and the PDF you export.
+The choice is remembered per browser and travels into the deck you present and
+the PDF you export.
 
 ### Backdrops
 
@@ -619,43 +617,6 @@ The whole backdrop is CSS custom properties and gradients — no canvas, no
 images, no JavaScript — so it survives into the PDF, where it is re-attached to
 each page (a fixed element does not repeat across a paged medium). Anyone who
 has `prefers-reduced-motion` set gets the geometry without the drift.
-
-### Type size
-
-Any theme can be set at four sizes, so the two choices compose instead of
-multiplying into fifty-six presets:
-
-| id   | name    | what it is for                                                  |
-| ---- | ------- | --------------------------------------------------------------- |
-| `s`  | small   | More on a slide. Dense reference decks, close screens.           |
-| `m`  | medium  | The default. Reads from the middle of a normal room.             |
-| `l`  | large   | A wide room, or a talk of a handful of lines a slide.            |
-| `xl` | x-large | Readable from the back row. Expect three or four lines a slide.  |
-
-```bash
-deckrun slides.md --size xl
-deckrun --list-sizes
-```
-
-The scale is not one multiplier over everything. Headings and prose pull in
-different directions as a deck grows: at `xl` the point is to get the *reading*
-text to the back row, and the headings are already legible, so prose grows
-further than they do — 1.38× against 1.24×. At `s` the reverse. Leading tightens
-as the type grows so lines stay in one block, and the slide gives back some of
-its padding so the extra size has somewhere to go. `m` is exactly 1 across the
-board, so it is the sizing the stylesheet states literally and the other three
-are honest multiples of it.
-
-Sizes are set in `SIZE_SPECS` in `src/themes.ts`, in the same shape as the
-themes: a display, body, and code multiplier, a leading factor, and the slide
-padding. List indents, bullet markers, and the blockquote glyph are all in `em`,
-so they track whatever size is on rather than drifting into the text.
-
-In the editor the size lives in the same picker as the theme (`Cmd Shift L`),
-where `[` and `]` step it. Unlike the theme, which is previewed and can be
-abandoned with `Esc`, a size click sticks right away. It is remembered per
-browser, applies to every theme, and travels into the deck you present and the
-PDF you export.
 
 ### Faces
 
@@ -843,6 +804,19 @@ Press `D` for a pen and draw straight onto the slide with the mouse, a trackpad,
 
 Press `C` and the same canvas paints itself opaque over the slide: a blank board for the diagram you did not plan for, in the deck's own background color. The pen arms itself when it opens. `C` again, or `Escape`, brings the slide back with whatever you drew still on it, since both modes share one board per slide. Navigation still works behind it, so every slide has its own blank board.
 
+### Highlighting and comments
+
+Select text — in the editor's preview, in a presented deck, or in a presented HTML doc — and a small bar appears with `highlight` and `highlight + comment`. Click a highlight to edit its comment or remove it; one that carries a comment gets a dot after it and shows the comment on hover.
+
+- **The pen is not a theme colour.** A highlight is marker yellow with its own dark ink on all fourteen palettes, and a commented one is marker cyan. A tint of the accent would read as part of the design; the point of a highlight is that you can find it across a room, on a dark theme or a light one. Syntax colouring gives way to the ink inside a mark, so highlighted code stays readable.
+- **They are session state, nothing more.** Highlights live in the browser session. They survive a reload and follow you into the tab `present` opens, and the moment that tab or the browser closes they are gone. Nothing reaches disk, the server, or `localStorage`, and the first time you make one the editor says so.
+- **The editor and the projector share them.** Highlight while writing and the marks are already on the slides when you present, on the right slide and with their comments intact. Both tabs stay in step for as long as they are open.
+- **They are anchored to the text, not to a position.** Edit the paragraph above a highlight and it stays put. Delete the sentence it was on and it quietly drops out rather than landing somewhere wrong.
+- **Each document keeps its own.** Switching decks in the library switches the marks with them, and deleting a deck deletes its highlights too.
+- **Exports never carry them.** Downloaded HTML, the standalone presenter page, and PDF export are all built server-side from the source, so nobody's reading marks end up in a file you hand over.
+
+Works the same on Markdown decks and on HTML docs. In a deck, a highlight belongs to the slide it was made on; in a doc, to the document. Rendered equations and Mermaid diagrams are skipped — splitting either one apart would break the render — so highlighting covers prose, headings, tables, and code.
+
 ### Blacking out the screen
 
 Press `B` to drop the screen to black, for the moment when the room should be looking at you rather than the slide. While it is up, keys cannot move the deck by accident: only `B`, `Escape`, `Space`, `Enter`, or a click brings it back.
@@ -1017,7 +991,7 @@ deckrun examples/example-1.md
 deckrun
 
 # Open the technical talk in light theme on port 3000
-deckrun examples/example-2.md -p 3000 --theme solarized --size l
+deckrun examples/example-2.md -p 3000 --theme solarized
 
 # Present fullscreen on the first key or click, without opening a browser
 deckrun examples/example-1.md --fullscreen --no-open
@@ -1055,7 +1029,7 @@ The source:
 
 - `src/index.ts` is the CLI, the HTTP server, the editor routes, and port selection
 - `src/parser.ts` splits slides, extracts notes, and resolves image directives
-- `src/themes.ts` is the theme registry and the type scale: palettes, font catalog, backdrop patterns, size presets, and the CSS they all emit
+- `src/themes.ts` is the theme registry: palettes, font catalog, backdrop patterns, and the CSS they all emit
 - `src/presentation-options.ts` is the composition-template and transition registry
 - `src/fragments.ts` contains incremental-reveal styles and DOM preparation shared by preview and presentation
 - `src/lint.ts` implements the static deck authoring rules behind `deckrun lint`

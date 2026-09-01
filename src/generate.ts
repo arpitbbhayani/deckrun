@@ -1,7 +1,6 @@
 import type { Slide } from "./parser.js";
 import {
   DECOR_CSS,
-  DEFAULT_SIZE,
   DEFAULT_THEME,
   THEME_IDS,
   THEMES,
@@ -12,13 +11,10 @@ import {
   googleFontsHref,
   hljsHref,
   hljsMapJson,
-  resolveSizeName,
   resolveThemeName,
-  sizeRootCss,
   themeRootCss,
   themeSummaries,
   themeSwitchableCss,
-  type SizeName,
   type ThemeName,
 } from "./themes.js";
 import {
@@ -38,6 +34,7 @@ import {
   richContentHead,
 } from "./rich-content.js";
 import { FRAGMENT_CSS, FRAGMENT_RUNTIME } from "./fragments.js";
+import { HIGHLIGHT_RUNTIME } from "./highlights.js";
 
 export {
   DECOR_CSS,
@@ -55,14 +52,6 @@ export {
   THEMES,
   DEFAULT_THEME,
   type ThemeName,
-  sizeRootCss,
-  sizeSwitchableCss,
-  sizeSummaries,
-  resolveSizeName,
-  findSize,
-  SIZE_IDS,
-  DEFAULT_SIZE,
-  type SizeName,
   fontOverrideCss,
   fontSummaries,
   fontListing,
@@ -131,7 +120,14 @@ export const RESET_CSS = `/* ── Reset & base ──────────�
 }`;
 
 /** Slide rendering rules. Shared verbatim by the deck and the editor preview. */
-export const SLIDE_CSS = `html, body {
+export const SLIDE_CSS = `/* The gutter a slide keeps around its content. A variable rather than a
+   literal because the composition templates each reset it. */
+:root {
+  --slide-pad-y: 4.4rem;
+  --slide-pad-x: 6rem;
+}
+
+html, body {
   height: 100%;
   overflow: hidden;
   background: var(--crust);
@@ -278,7 +274,7 @@ export const SLIDE_CSS = `html, body {
 
 .slide__content h1 {
   position: relative;
-  font-size: calc(clamp(2.1rem, 4.6vw, 3.6rem) * var(--type-display));
+  font-size: clamp(2.1rem, 4.6vw, 3.6rem);
   font-weight: var(--display-weight);
   text-transform: var(--display-case);
   color: var(--accent);
@@ -301,7 +297,7 @@ export const SLIDE_CSS = `html, body {
 }
 
 .slide__content h2 {
-  font-size: calc(clamp(1.55rem, 3vw, 2.5rem) * var(--type-display));
+  font-size: clamp(1.55rem, 3vw, 2.5rem);
   font-weight: 600;
   color: var(--accent-2);
   margin-bottom: 1.05rem;
@@ -309,7 +305,7 @@ export const SLIDE_CSS = `html, body {
 }
 
 .slide__content h3 {
-  font-size: calc(clamp(1.15rem, 2vw, 1.8rem) * var(--type-display));
+  font-size: clamp(1.15rem, 2vw, 1.8rem);
   font-weight: 600;
   color: var(--accent-3);
   margin-bottom: 0.75rem;
@@ -317,7 +313,7 @@ export const SLIDE_CSS = `html, body {
 }
 
 .slide__content h4 {
-  font-size: calc(1.3rem * var(--type-display));
+  font-size: 1.3rem;
   font-weight: 600;
   color: var(--subtext1);
   letter-spacing: 0.08em;
@@ -326,8 +322,8 @@ export const SLIDE_CSS = `html, body {
 }
 
 .slide__content p {
-  font-size: calc(clamp(1rem, 1.6vw, 1.35rem) * var(--type-body));
-  line-height: calc(1.72 * var(--type-lead));
+  font-size: clamp(1rem, 1.6vw, 1.35rem);
+  line-height: 1.72;
   margin-bottom: 1rem;
   color: var(--subtext1);
 }
@@ -348,8 +344,8 @@ export const SLIDE_CSS = `html, body {
 /* ── Lists ────────────────────────────────────────────────────────────── */
 .slide__content ul,
 .slide__content ol {
-  font-size: calc(clamp(0.95rem, 1.5vw, 1.28rem) * var(--type-body));
-  line-height: calc(1.72 * var(--type-lead));
+  font-size: clamp(0.95rem, 1.5vw, 1.28rem);
+  line-height: 1.72;
   margin-bottom: 1rem;
   color: var(--subtext1);
 }
@@ -414,7 +410,7 @@ export const SLIDE_CSS = `html, body {
   border-radius: 12px;
   border: 1px solid var(--hairline);
   overflow-x: auto;
-  font-size: calc(clamp(0.75rem, 1.1vw, 1rem) * var(--type-code));
+  font-size: clamp(0.75rem, 1.1vw, 1rem);
   box-shadow: var(--code-shadow);
   background: var(--mantle);
 }
@@ -438,7 +434,7 @@ export const SLIDE_CSS = `html, body {
   padding: 1.5rem 1.7rem;
   font-family: var(--font-mono);
   font-size: inherit;
-  line-height: calc(1.66 * var(--type-lead));
+  line-height: 1.66;
   letter-spacing: 0;
 }
 
@@ -463,7 +459,7 @@ export const SLIDE_CSS = `html, body {
   border-left: 3px solid var(--accent);
   border-radius: 0 10px 10px 0;
   color: var(--subtext1);
-  font-size: calc(clamp(1rem, 1.5vw, 1.3rem) * var(--type-body));
+  font-size: clamp(1rem, 1.5vw, 1.3rem);
 }
 
 .slide__content blockquote::before {
@@ -491,7 +487,7 @@ export const SLIDE_CSS = `html, body {
   border-collapse: collapse;
   width: 100%;
   margin: 1.2rem 0;
-  font-size: calc(clamp(0.85rem, 1.2vw, 1.05rem) * var(--type-code));
+  font-size: clamp(0.85rem, 1.2vw, 1.05rem);
   /* Rules, not boxes: a grid of borders fights the text for attention. */
   border-bottom: 1px solid var(--hairline);
 }
@@ -746,7 +742,7 @@ const CHROME_CSS = `/* ── HUD (progress + counter) ────────�
   top: var(--slide-pad-y);
   right: var(--slide-pad-x);
   width: 12px;
-  height: calc(clamp(2rem, 4.5vw, 3.4rem) * var(--type-display));
+  height: clamp(2rem, 4.5vw, 3.4rem);
   background: var(--accent);
   box-shadow: 0 0 22px var(--glow);
   z-index: 100;
@@ -1409,12 +1405,10 @@ export function generateHtml(
   title: string,
   autoFullscreen = false,
   themeInput: ThemeName = DEFAULT_THEME,
-  sizeInput: SizeName = DEFAULT_SIZE,
   fonts: FontChoice = {},
   presentation: PresentationChoice = {}
 ): string {
   const theme = resolveThemeName(themeInput);
-  const size = resolveSizeName(sizeInput);
   const template = resolveTemplateName(presentation.template ?? DEFAULT_TEMPLATE);
   const transition = resolveTransitionName(presentation.transition ?? DEFAULT_TRANSITION);
   const head = findFont(fonts.head);
@@ -1431,7 +1425,7 @@ export function generateHtml(
 
   const pageTitle = title ? (title.toLowerCase().includes("deckrun") ? title : `${title} · deckrun`) : "deckrun";
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-size="${size}" data-template="${template}" data-transition="${transition}"${fontAttrs}>
+<html lang="en" data-theme="${theme}" data-decor="${decorOf(theme)}" data-template="${template}" data-transition="${transition}"${fontAttrs}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1446,8 +1440,6 @@ export function generateHtml(
 ${RESET_CSS}
 
 ${themeSwitchableCss()}
-
-${sizeRootCss(size)}
 
 ${fontOverrideCss()}
 
@@ -1560,6 +1552,8 @@ ${autoFullscreen ? `<div id="fs-hint">
 ${FRAGMENT_RUNTIME}
 
 ${RICH_CONTENT_RUNTIME}
+
+${HIGHLIGHT_RUNTIME}
 </script>
 <script>
 (function () {
@@ -1634,6 +1628,19 @@ ${RICH_CONTENT_RUNTIME}
   const richReady = window.deckrunRenderRichContent
     ? window.deckrunRenderRichContent(document.getElementById('presentation'))
     : Promise.resolve();
+
+  // ── Session highlights ───────────────────────────────────────────────
+  // Whatever was highlighted in the editor's preview is already in this
+  // browser session; hl=... names the document it belongs to, so the deck
+  // opens with the same marks and comments already on the slides.
+  if (window.deckrunHighlights) {
+    const hlParam = new URLSearchParams(location.search).get('hl');
+    window.deckrunHighlights.mount({
+      doc: document,
+      docKey: hlParam || 'default',
+      scopes: 'slides'
+    });
+  }
 
   // ── Slide navigation ─────────────────────────────────────────────────
   function showSlide(next, direction, fragmentMode) {
@@ -2267,6 +2274,10 @@ ${RICH_CONTENT_RUNTIME}
     { title: 'point', rows: [
       { keys: ['L'],                      desc: 'Laser pointer' },
     ]},
+    { title: 'mark up', rows: [
+      { keys: ['select'],                 desc: 'Highlight, with or without a comment' },
+      { keys: ['click'],                  desc: 'Edit or remove a highlight' },
+    ]},
     { title: 'draw', rows: [
       { keys: ['D'],                      desc: 'Pen, over the slide' },
       { keys: ['C'],                      desc: 'Blank canvas' },
@@ -2762,6 +2773,9 @@ ${autoFullscreen ? `<div id="fs-hint">
 <script id="deck-themes" type="application/json">${JSON.stringify({ themes: themeSummaries(), hljsMap: JSON.parse(hljsMapJson()), decorMap: JSON.parse(decorMapJson()) })}</script>
 
 <script>
+${HIGHLIGHT_RUNTIME}
+</script>
+<script>
 (function () {
   'use strict';
 
@@ -2773,6 +2787,18 @@ ${autoFullscreen ? `<div id="fs-hint">
   const elPenBar   = document.getElementById('pen-bar');
   const elPenWidth = document.getElementById('pen-width');
   const elFrame    = document.getElementById('doc-frame');
+
+  // ── Session highlights ────────────────────────────────────────────────
+  // The doc itself is same-origin, so its text is highlightable from here,
+  // and the popups render on this wrapper, above the iframe, where they take
+  // the presenter chrome's palette. hl=... names whose highlights these are.
+  if (window.deckrunHighlights) {
+    window.deckrunHighlights.mount({
+      frame: elFrame,
+      docKey: new URLSearchParams(location.search).get('hl') || 'default',
+      scopes: 'doc'
+    });
+  }
 
   // ── Presenter tools ───────────────────────────────────────────────────
   // One flat stroke list — unlike the slide deck, there is only ever one
@@ -3238,6 +3264,10 @@ ${autoFullscreen ? `<div id="fs-hint">
     ]},
     { title: 'point', rows: [
       { keys: ['L'],                      desc: 'Laser pointer' },
+    ]},
+    { title: 'mark up', rows: [
+      { keys: ['select'],                 desc: 'Highlight, with or without a comment' },
+      { keys: ['click'],                  desc: 'Edit or remove a highlight' },
     ]},
     { title: 'draw', rows: [
       { keys: ['D'],                      desc: 'Pen, over the doc' },

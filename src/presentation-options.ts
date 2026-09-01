@@ -189,7 +189,9 @@ export const TEMPLATE_CSS = `/* ── Templates ──────────�
   text-align: center;
 }
 :root[data-template="spotlight"] .slide__content h1 {
-  font-size: calc(var(--type-display) * 1.15);
+  /* A shade larger than a normal heading: on a template built around one
+     statement a slide, the statement carries it. */
+  font-size: calc(clamp(2.1rem, 4.6vw, 3.6rem) * 1.15);
   text-align: center;
 }
 :root[data-template="spotlight"] .slide__content p {
