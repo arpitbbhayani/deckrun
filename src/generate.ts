@@ -1632,13 +1632,16 @@ ${HIGHLIGHT_RUNTIME}
   // ── Session highlights ───────────────────────────────────────────────
   // Whatever was highlighted in the editor's preview is already in this
   // browser session; hl=... names the document it belongs to, so the deck
-  // opens with the same marks and comments already on the slides.
+  // opens with the same marks and comments already on the slides. Read-only
+  // here: selecting text while presenting should not pop up "highlight" /
+  // "highlight + comment" — that flow belongs to the editor's preview.
   if (window.deckrunHighlights) {
     const hlParam = new URLSearchParams(location.search).get('hl');
     window.deckrunHighlights.mount({
       doc: document,
       docKey: hlParam || 'default',
-      scopes: 'slides'
+      scopes: 'slides',
+      readOnly: true
     });
   }
 
@@ -2789,14 +2792,16 @@ ${HIGHLIGHT_RUNTIME}
   const elFrame    = document.getElementById('doc-frame');
 
   // ── Session highlights ────────────────────────────────────────────────
-  // The doc itself is same-origin, so its text is highlightable from here,
-  // and the popups render on this wrapper, above the iframe, where they take
-  // the presenter chrome's palette. hl=... names whose highlights these are.
+  // The doc itself is same-origin, so marks made in the editor's preview
+  // still render here, on the presenter chrome's palette. Read-only: this is
+  // the presenting surface, not the editor, so selecting text here should
+  // not offer to create a highlight. hl=... names whose highlights these are.
   if (window.deckrunHighlights) {
     window.deckrunHighlights.mount({
       frame: elFrame,
       docKey: new URLSearchParams(location.search).get('hl') || 'default',
-      scopes: 'doc'
+      scopes: 'doc',
+      readOnly: true
     });
   }
 

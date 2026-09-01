@@ -406,6 +406,10 @@ export const HIGHLIGHT_RUNTIME = `(function () {
    * opts.docKey   which document's highlights these are
    * opts.scopes   'slides' | 'doc' | function(doc) -> [{ key, el }]
    * opts.onWarn   host's own way of showing the first-use warning
+   * opts.readOnly true to only paint highlights made elsewhere (editor's
+   *                preview) and skip the create-on-select bar — for the deck
+   *                someone is actually presenting, where selecting text to
+   *                click through slides should not pop up "highlight".
    */
   function mount(opts) {
     opts = opts || {};
@@ -413,6 +417,7 @@ export const HIGHLIGHT_RUNTIME = `(function () {
     var uiDoc = frame ? frame.ownerDocument : (opts.doc || document);
     var scopes = opts.scopes || 'slides';
     var docKey = opts.docKey || 'default';
+    var readOnly = !!opts.readOnly;
     var bound = null;      // document the listeners and observer sit on
     var observer = null;
     var queued = false;
@@ -513,8 +518,10 @@ export const HIGHLIGHT_RUNTIME = `(function () {
       if (bound === doc) return;
       bound = doc;
       if (observer) observer.disconnect();
-      doc.addEventListener('mouseup', onSelect, true);
-      doc.addEventListener('keyup', onSelect, true);
+      if (!readOnly) {
+        doc.addEventListener('mouseup', onSelect, true);
+        doc.addEventListener('keyup', onSelect, true);
+      }
       doc.addEventListener('click', onClickMark, true);
       doc.addEventListener('scroll', reposition, true);
       if (doc.defaultView) doc.defaultView.addEventListener('resize', reposition);
