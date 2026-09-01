@@ -301,6 +301,71 @@ test("Highlight colors are fixed, not borrowed from the theme", async () => {
   assert.ok(HIGHLIGHT_RUNTIME.includes("var(--mantle,"));
 });
 
+test("The four official Catppuccin flavors are registered with exact palette values", async () => {
+  const { THEME_IDS, THEMES, themeSummaries, themeRootCss, resolveThemeName: resolveTheme } =
+    await import("../dist/themes.js");
+
+  const flavors = {
+    "catppuccin-latte": { mood: "light", base: "#eff1f5", text: "#4c4f69", mauve: "#8839ef" },
+    "catppuccin-frappe": { mood: "dark", base: "#303446", text: "#c6d0f5", mauve: "#ca9ee6" },
+    "catppuccin-macchiato": { mood: "dark", base: "#24273a", text: "#cad3f5", mauve: "#c6a0f6" },
+    "catppuccin-mocha": { mood: "dark", base: "#1e1e2e", text: "#cdd6f4", mauve: "#cba6f7" },
+  };
+
+  for (const [id, expected] of Object.entries(flavors)) {
+    assert.ok(THEME_IDS.includes(id), id + " is registered in THEME_IDS");
+    assert.equal(resolveTheme(id), id, id + " resolves to itself, not a fallback");
+
+    const theme = THEMES[id];
+    assert.equal(theme.mood, expected.mood, id + " has the right light/dark mood");
+    assert.equal(theme.neutrals.base, expected.base, id + " base matches the official hex");
+    assert.equal(theme.neutrals.text, expected.text, id + " text matches the official hex");
+    assert.equal(theme.accents.mauve, expected.mauve, id + " mauve matches the official hex");
+
+    // Every theme renders a full custom-property block, same as any other.
+    const css = themeRootCss(id);
+    assert.ok(css.includes(`--base:`) && css.includes(expected.base), id + " emits its base color");
+    assert.ok(css.includes("--accent:"), id + " emits an accent role");
+
+    const slides = parseSlides("# Catppuccin\nFlavor check");
+    const html = generateHtml(slides, "Deck", false, id, "m");
+    assert.ok(html.includes(`data-theme="${id}"`), id + " renders with its own data-theme attribute");
+  }
+
+  // Latte is the only light flavor; the other three are dark — this is the
+  // exact axis "dark mode only" logic keys off of, so it must not misfire.
+  const summaries = themeSummaries().filter((t) => t.id in flavors);
+  assert.equal(summaries.length, 4);
+  for (const s of summaries) {
+    assert.equal(s.mood, flavors[s.id].mood, s.id + " summary mood matches");
+  }
+});
+
+test("One Dark Pro is registered with the official Atom One Dark palette", async () => {
+  const { THEME_IDS, THEMES, themeRootCss, resolveThemeName: resolveTheme } =
+    await import("../dist/themes.js");
+
+  assert.ok(THEME_IDS.includes("onedarkpro"), "onedarkpro is registered in THEME_IDS");
+  assert.equal(resolveTheme("onedarkpro"), "onedarkpro", "resolves to itself, not a fallback");
+
+  const theme = THEMES.onedarkpro;
+  assert.equal(theme.mood, "dark");
+  assert.equal(theme.neutrals.base, "#282c34", "base matches the official editor background");
+  assert.equal(theme.neutrals.subtext1, "#abb2bf", "subtext1 matches the official body text color");
+  assert.equal(theme.accents.mauve, "#c678dd", "mauve matches the official keyword purple");
+  assert.equal(theme.accents.blue, "#61afef", "blue matches the official function blue");
+  assert.equal(theme.accents.green, "#98c379", "green matches the official string green");
+  // The user-facing grammar colors this theme advertises (keyword/string/number/
+  // function/class/comment/variable/operator) are exactly highlight.js's own
+  // atom-one-dark stylesheet, not an approximation like some other dark themes use.
+  assert.ok(theme.hljs.includes("atom-one-dark.min.css"), "pairs with the exact atom-one-dark grammar");
+
+  const slides = parseSlides("# One Dark Pro\nTheme check");
+  const html = generateHtml(slides, "Deck", false, "onedarkpro", "m");
+  assert.ok(html.includes('data-theme="onedarkpro"'), "renders with its own data-theme attribute");
+  assert.ok(themeRootCss("onedarkpro").includes("--base:") && themeRootCss("onedarkpro").includes("#282c34"));
+});
+
 test("The type size option is gone from every surface", async () => {
   const themes = await import("../dist/themes.js");
   for (const gone of ["SIZE_IDS", "DEFAULT_SIZE", "findSize", "resolveSizeName",
