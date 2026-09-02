@@ -569,26 +569,31 @@ Images with no directive stay inline, centered in the document flow and capped a
 
 ## Themes
 
-Fourteen themes, eight dark and six light. A theme is not just a palette: each
+Nineteen themes, twelve dark and seven light. A theme is not just a palette: each
 one brings its own display, body, and monospace faces, its own Highlight.js
 grammar colors, and its own animated geometry behind the slides.
 
-| id           | mood  | what it is                                                          |
-| ------------ | ----- | ------------------------------------------------------------------- |
-| `midnight`   | dark  | Catppuccin Mocha. Violet on deep indigo, drifting orbs               |
-| `tokyo`      | dark  | Tokyo Night. Neon cyan over a wireframe grid                         |
-| `nord`       | dark  | Arctic frost blue on polar slate, with slow contour waves            |
-| `dracula`    | dark  | Purple and hot pink over charcoal, lit by a gradient mesh            |
-| `gruvbox`    | dark  | Warm amber and moss on retro brown, hatched like graph paper         |
-| `rosepine`   | dark  | Rosé Pine. Muted iris and gold on plum, under a slow aurora          |
-| `forest`     | dark  | Everforest sage on deep pine, rippling in concentric rings           |
-| `neon`       | dark  | Electric cyan and magenta on true black, raked by light beams        |
-| `daylight`   | light | Catppuccin Latte, contrast-tuned for a projector. Dot matrix         |
-| `arctic`     | light | Nord inverted. Frost blue on cool paper, with contour waves          |
-| `solarized`  | light | The classic low-glare cream, paired with Lora for long prose         |
-| `paper`      | light | Crimson serif on warm cream. Editorial, print-first, very legible    |
-| `rosequartz` | light | Rosé Pine Dawn. Blush and iris on linen, with soft orbs              |
-| `swiss`      | light | Black on white, one red. Heavy grotesk, tight tracking, hard grid    |
+| id                      | mood  | what it is                                                          |
+| ----------------------- | ----- | ------------------------------------------------------------------- |
+| `midnight`               | dark  | Catppuccin Mocha. Violet on deep indigo, drifting orbs               |
+| `tokyo`                  | dark  | Tokyo Night. Neon cyan over a wireframe grid                         |
+| `nord`                   | dark  | Arctic frost blue on polar slate, with slow contour waves            |
+| `dracula`                | dark  | Purple and hot pink over charcoal, lit by a gradient mesh            |
+| `gruvbox`                | dark  | Warm amber and moss on retro brown, hatched like graph paper         |
+| `rosepine`               | dark  | Rosé Pine. Muted iris and gold on plum, under a slow aurora          |
+| `forest`                 | dark  | Everforest sage on deep pine, rippling in concentric rings           |
+| `onedarkpro`             | dark  | Atom's One Dark Pro. Muted blue-grey with cyan and violet accents    |
+| `catppuccin-frappe`      | dark  | Official Catppuccin Frappé. Muted mauve on soft slate blue           |
+| `catppuccin-macchiato`   | dark  | Official Catppuccin Macchiato. Balanced mauve on deep indigo         |
+| `catppuccin-mocha`       | dark  | Official Catppuccin Mocha. Full-strength mauve on the darkest base   |
+| `neon`                   | dark  | Electric cyan and magenta on true black, raked by light beams        |
+| `daylight`               | light | Catppuccin Latte, contrast-tuned for a projector. Dot matrix         |
+| `arctic`                 | light | Nord inverted. Frost blue on cool paper, with contour waves          |
+| `solarized`              | light | The classic low-glare cream, paired with Lora for long prose         |
+| `paper`                  | light | Crimson serif on warm cream. Editorial, print-first, very legible    |
+| `rosequartz`             | light | Rosé Pine Dawn. Blush and iris on linen, with soft orbs              |
+| `swiss`                  | light | Black on white, one red. Heavy grotesk, tight tracking, hard grid    |
+| `catppuccin-latte`       | light | Official Catppuccin Latte. Warm mauve on soft cream                  |
 
 ```bash
 deckrun slides.md --theme paper

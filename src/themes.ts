@@ -365,6 +365,108 @@ const SPECS: Record<string, ThemeSpec> = {
     hljs: `${HL}atom-one-dark.min.css`,
   },
 
+  // Atom's One Dark, as shipped by the "One Dark Pro" VS Code extension
+  // (github.com/Binaryify/OneDark-Pro) — editor chrome hex values pulled
+  // straight from its theme JSON; grammar colors are the classic
+  // hue-1..hue-6 syntax set the whole One Dark family shares, which is also
+  // exactly what highlight.js's own atom-one-dark stylesheet paints with.
+  onedarkpro: {
+    label: "one dark pro",
+    mood: "dark",
+    blurb: "Atom's One Dark Pro. Muted blue-grey with cyan and violet accents, on charcoal.",
+    neutrals: {
+      crust: "#181a1f", mantle: "#21252b", base: "#282c34",
+      surface0: "#2c313c", surface1: "#3e4452", surface2: "#495162",
+      overlay0: "#4e5666", overlay1: "#5a6375",
+      subtext0: "#5c6370", subtext1: "#abb2bf", text: "#d7dae0",
+    },
+    accents: {
+      lavender: "#c162de", blue: "#61afef", sapphire: "#528bff", sky: "#4dc4ff",
+      teal: "#56b6c2", green: "#98c379", yellow: "#e5c07b", peach: "#d19a66",
+      red: "#e06c75", mauve: "#c678dd", pink: "#de73ff",
+    },
+    roles: { accent: "mauve", accent2: "blue", accent3: "teal" },
+    type: { display: "manrope", body: "inter", mono: "jetbrains", weight: 700, tracking: "-0.03em" },
+    decor: "grid",
+    hljs: `${HL}atom-one-dark.min.css`,
+  },
+
+  // ── Catppuccin (official) ─────────────────────────────────────────────
+  // Exact palette values from https://catppuccin.com/palette/ — the
+  // community-maintained Catppuccin project. `midnight` above already *is*
+  // the unmodified Mocha palette under its own name/fonts/decor; `catppuccin-
+  // mocha` repeats it deliberately so the flavor is findable by its official
+  // name too. `daylight` is a contrast-tuned Latte variant, not exact — these
+  // three (plus `catppuccin-latte` below) are the unmodified flavors.
+  //
+  // The four share a palette family but each gets its own `type`, `decor`,
+  // and `roles` — the same axes that make any two of the original themes
+  // read as different rather than just differently tinted. Sharing those too
+  // (as an earlier pass did) left them looking like one theme with a dimmer
+  // switch.
+  "catppuccin-frappe": {
+    label: "catppuccin frappé",
+    mood: "dark",
+    blurb: "Official Catppuccin Frappé. Muted mauve on soft slate blue.",
+    neutrals: {
+      crust: "#232634", mantle: "#292c3c", base: "#303446",
+      surface0: "#414559", surface1: "#51576d", surface2: "#626880",
+      overlay0: "#737994", overlay1: "#838ba7",
+      subtext0: "#a5adce", subtext1: "#b5bfe2", text: "#c6d0f5",
+    },
+    accents: {
+      lavender: "#babbf1", blue: "#8caaee", sapphire: "#85c1dc", sky: "#99d1db",
+      teal: "#81c8be", green: "#a6d189", yellow: "#e5c890", peach: "#ef9f76",
+      red: "#e78284", mauve: "#ca9ee6", pink: "#f4b8e4",
+    },
+    roles: { accent: "mauve", accent2: "sky", accent3: "green" },
+    type: { display: "figtree", body: "inter", mono: "jetbrains", weight: 600, tracking: "-0.02em" },
+    decor: "dots",
+    hljs: `${HL}nord.min.css`,
+  },
+
+  "catppuccin-macchiato": {
+    label: "catppuccin macchiato",
+    mood: "dark",
+    blurb: "Official Catppuccin Macchiato. Balanced mauve on deep indigo.",
+    neutrals: {
+      crust: "#181926", mantle: "#1e2030", base: "#24273a",
+      surface0: "#363a4f", surface1: "#494d64", surface2: "#5b6078",
+      overlay0: "#6e738d", overlay1: "#8087a2",
+      subtext0: "#a5adcb", subtext1: "#b8c0e0", text: "#cad3f5",
+    },
+    accents: {
+      lavender: "#b7bdf8", blue: "#8aadf4", sapphire: "#7dc4e4", sky: "#91d7e3",
+      teal: "#8bd5ca", green: "#a6da95", yellow: "#eed49f", peach: "#f5a97f",
+      red: "#ed8796", mauve: "#c6a0f6", pink: "#f5bde6",
+    },
+    roles: { accent: "pink", accent2: "blue", accent3: "sapphire" },
+    type: { display: "outfit", body: "plexSans", mono: "firaCode", weight: 700, tracking: "-0.03em" },
+    decor: "rings",
+    hljs: `${HL}base16/dracula.min.css`,
+  },
+
+  "catppuccin-mocha": {
+    label: "catppuccin mocha",
+    mood: "dark",
+    blurb: "Official Catppuccin Mocha. Full-strength mauve on the darkest base.",
+    neutrals: {
+      crust: "#11111b", mantle: "#181825", base: "#1e1e2e",
+      surface0: "#313244", surface1: "#45475a", surface2: "#585b70",
+      overlay0: "#6c7086", overlay1: "#7f849c",
+      subtext0: "#a6adc8", subtext1: "#bac2de", text: "#cdd6f4",
+    },
+    accents: {
+      lavender: "#b4befe", blue: "#89b4fa", sapphire: "#74c7ec", sky: "#89dceb",
+      teal: "#94e2d5", green: "#a6e3a1", yellow: "#f9e2af", peach: "#fab387",
+      red: "#f38ba8", mauve: "#cba6f7", pink: "#f5c2e7",
+    },
+    roles: { accent: "mauve", accent2: "blue", accent3: "teal" },
+    type: { display: "manrope", body: "inter", mono: "jetbrains", weight: 700, tracking: "-0.03em" },
+    decor: "waves",
+    hljs: `${HL}tokyo-night-dark.min.css`,
+  },
+
   // ── Light ──────────────────────────────────────────────────────────────
   daylight: {
     label: "daylight",
@@ -491,6 +593,31 @@ const SPECS: Record<string, ThemeSpec> = {
     decor: "waves",
     hljs: `${HL}atom-one-light.min.css`,
   },
+
+  // ── Catppuccin (official) ─────────────────────────────────────────────
+  // See the "Catppuccin (official)" block in the Dark section above for the
+  // attribution note; `daylight` is a contrast-tuned Latte variant, this is
+  // the unmodified flavor.
+  "catppuccin-latte": {
+    label: "catppuccin latte",
+    mood: "light",
+    blurb: "Official Catppuccin Latte. Warm mauve on soft cream.",
+    neutrals: {
+      crust: "#dce0e8", mantle: "#e6e9ef", base: "#eff1f5",
+      surface0: "#ccd0da", surface1: "#bcc0cc", surface2: "#acb0be",
+      overlay0: "#9ca0b0", overlay1: "#8c8fa1",
+      subtext0: "#6c6f85", subtext1: "#5c5f77", text: "#4c4f69",
+    },
+    accents: {
+      lavender: "#7287fd", blue: "#1e66f5", sapphire: "#209fb5", sky: "#04a5e5",
+      teal: "#179299", green: "#40a02b", yellow: "#df8e1d", peach: "#fe640b",
+      red: "#d20f39", mauve: "#8839ef", pink: "#ea76cb",
+    },
+    roles: { accent: "mauve", accent2: "blue", accent3: "teal" },
+    type: { display: "spaceGrotesk", body: "figtree", mono: "plexMono", weight: 700, tracking: "-0.025em" },
+    decor: "aurora",
+    hljs: `${HL}atom-one-light.min.css`,
+  },
 };
 
 /**
@@ -498,8 +625,11 @@ const SPECS: Record<string, ThemeSpec> = {
  * calmest to loudest.
  */
 export const THEME_IDS = [
-  "midnight", "tokyo", "nord", "dracula", "gruvbox", "rosepine", "forest", "neon",
+  "midnight", "tokyo", "nord", "dracula", "gruvbox", "rosepine", "forest",
+  "onedarkpro",
+  "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha", "neon",
   "daylight", "arctic", "solarized", "paper", "rosequartz", "swiss",
+  "catppuccin-latte",
 ] as const;
 
 export type ThemeName = string;
