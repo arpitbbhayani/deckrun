@@ -137,6 +137,9 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   font-variant-ligatures: common-ligatures;
 }
 
@@ -2534,6 +2537,25 @@ ${HIGHLIGHT_RUNTIME}
     // underneath every horizontal line drawn on a touchscreen.
     if (penOn) return;
     const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) dx < 0 ? next() : prev();
+  }, { passive: true });
+
+  // ── Apple Pencil (iPad) ───────────────────────────────────────────────
+  // Prevent iPadOS from showing the blue text-selection UI when the Pencil
+  // taps or swipes on a slide. `selectstart` is what Safari fires right
+  // before the selection highlight appears — preventing it is the most
+  // reliable suppression. We also map horizontal pencil swipes to slide
+  // navigation (same 50 px threshold as the touch swipe above).
+  document.addEventListener('selectstart', (e) => { e.preventDefault(); }, { passive: false });
+  let penStartX = 0;
+  document.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'pen') return;
+    e.preventDefault();
+    penStartX = e.clientX;
+  }, { passive: false });
+  document.addEventListener('pointerup', (e) => {
+    if (e.pointerType !== 'pen' || penOn) return;
+    const dx = e.clientX - penStartX;
     if (Math.abs(dx) > 50) dx < 0 ? next() : prev();
   }, { passive: true });
 
